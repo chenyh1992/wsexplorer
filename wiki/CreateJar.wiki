@@ -1,0 +1,11 @@
+#summary Create the WSExplorer Jar
+
+= Create the WSExplorer Jar =
+
+  # Open the project in Eclipse
+  # Right-click the project and choose Export
+  # Create a name for the Jar file
+  # Choose to use the current jar description (wsexplorer.jardesc) in the project (should be at the top level)
+  # Choose to use the current manifest(wsexplorer.mf) in the project (should be at the top level)
+  # Finish the Wizard
+  # Be sure and put all the Jars listed in the wsexplorer.mf at the same level as the WSExplorer.jar.
