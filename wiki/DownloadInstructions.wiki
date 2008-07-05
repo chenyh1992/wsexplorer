@@ -1,0 +1,8 @@
+#summary Download Instructions
+
+= Download Instructions =
+
+  # Download the zip file.
+  # Unzip the file
+  # (optional) Right-click on the WSExplorer.jar and click Send To Desktop (create shortcut)
+  # Double-click the WSExplorer Jar file or shortcut.
