@@ -1,0 +1,7 @@
+#summary IDE Setup (Eclipse)
+
+= Eclipse Setup =
+
+  # Connect to the SVN repository for this projects
+  # Checkout the main folder in the trunk
+  # All project references should be included when you download from SVN
