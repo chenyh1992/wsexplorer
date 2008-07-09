@@ -66,8 +66,9 @@ import com.swtdesigner.SWTResourceManager;
 
 public class WSExplorer {
 
-	final String ENDPOINTS_FILE = "endpoints.txt";
-	
+	final static String ENDPOINTS_FILE = "endpoints.txt";
+	final static String SOAP_TEMPLATE_FILE = "SOAPTemplate.xml";
+	final static String GPLV3_FILE = "gpl-3.0.txt";
 	final Shell shell = new Shell();
 	
 	BlockingQueue<Runnable> q = new ArrayBlockingQueue<Runnable>(10);
@@ -132,10 +133,12 @@ public class WSExplorer {
 
 		Label wsExplorerLabel;
 		wsExplorerLabel = new Label(shell, SWT.NONE);
+		wsExplorerLabel.setToolTipText("Web Service Explorer");
 		wsExplorerLabel.setFont(SWTResourceManager.getFont("", 14, SWT.NONE));
 		wsExplorerLabel.setText("WS Explorer");
 
 		endpointCombo = new Combo(shell, SWT.NONE);
+		endpointCombo.setToolTipText("Enter Endpoint URL");
 		// set the items in the combo from a file
 		if(comboItems.size() > 0){
 			String[] s = (String[]) comboItems.toArray(new String[comboItems.size()]);
@@ -153,9 +156,11 @@ public class WSExplorer {
 
 
 		progressBar = new ProgressBar(shell, SWT.NONE);
+		progressBar.setToolTipText("Progress Of Current Action");
 
 		Button sendButton2;
 		sendButton2 = new Button(shell, SWT.NONE);
+		sendButton2.setToolTipText("Send The Message");
 		sendButton2.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				String endpointText = endpointCombo.getText();
@@ -193,7 +198,7 @@ public class WSExplorer {
 				PopulateResponse aPopulateResponse = new PopulateResponse(shell, responseText, progressBar, statusText, executeWsFuture);
 				ecs.submit(aPopulateResponse);
 				
-				IncrementProgressBar aIncrementProgressBar = new IncrementProgressBar(shell, progressBar);
+				IncrementProgressBar aIncrementProgressBar = new IncrementProgressBar(shell, progressBar, shouldStopProgressBar);
 				ecs.submit(aIncrementProgressBar);
 				
 			}
@@ -218,6 +223,40 @@ public class WSExplorer {
 		});
 		
 		newItemMenuItem_1.setText("Exit");
+
+		final MenuItem helpMenu = new MenuItem(menu, SWT.CASCADE);
+		helpMenu.setText("Help");
+
+		final Menu menu_5 = new Menu(helpMenu);
+		helpMenu.setMenu(menu_5);
+
+		final MenuItem aboutMenuItem = new MenuItem(menu_5, SWT.NONE);
+		aboutMenuItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				MessageBox mb = new MessageBox(shell, SWT.OK | SWT.ICON_INFORMATION);
+                mb.setText("About WSExplorer");
+                mb.setMessage("WSExplorer is an open source program written by Nick Powers.\n" +
+                		"WSExplorer is protected by the GNU General Public License v3 (http://www.gnu.org/licenses/gpl.html).\n\n" +
+                		"Version: 0.2\n" +
+                		"Project Site: http://code.google.com/p/wsexplorer/");
+                
+                mb.open();
+				
+			}
+		});
+		aboutMenuItem.setText("About");
+
+		final MenuItem viewLicenseMenuItem = new MenuItem(menu_5, SWT.NONE);
+		viewLicenseMenuItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				
+				TextDialog td = new TextDialog(shell);
+				td.setText(getText(new File(GPLV3_FILE)));
+				td.open();
+				
+			}
+		});
+		viewLicenseMenuItem.setText("View License");
 
 		ToolBar toolBar;
 		toolBar = new ToolBar(shell, SWT.NONE);
@@ -304,6 +343,7 @@ public class WSExplorer {
 
 		
 		statusText = new Label(shell, SWT.BORDER);
+		statusText.setToolTipText("Status Messages Appear Here");
 		statusText.setBackground(SWTResourceManager.getColor(192, 192, 192));
 		final GroupLayout groupLayout = new GroupLayout(shell);
 		groupLayout.setHorizontalGroup(
@@ -375,48 +415,42 @@ public class WSExplorer {
 					.add(statusText, GroupLayout.PREFERRED_SIZE, 18, GroupLayout.PREFERRED_SIZE))
 		);
 
+		final Menu menu_4 = new Menu(responseText);
+		responseText.setMenu(menu_4);
+
+		final MenuItem openInBrowserView_response_popUp = new MenuItem(menu_4, SWT.NONE);
+		openInBrowserView_response_popUp.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				
+				openInBrowserView(responseText.getText());
+				
+			}
+		});
+		openInBrowserView_response_popUp.setText("Open In Browser View");
+
 		final Menu menu_3 = new Menu(requestText);
 		requestText.setMenu(menu_3);
 
-		final MenuItem newItemMenuItem_3 = new MenuItem(menu_3, SWT.NONE);
-		newItemMenuItem_3.addSelectionListener(new SelectionAdapter() {
+		final MenuItem openInBrowserView_request_popUp = new MenuItem(menu_3, SWT.NONE);
+		openInBrowserView_request_popUp.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e){
 				
-				// get text from request text box
-				String text = requestText.getText();
-				if(text == null || text.equals("")){
-					log("Didn't open browser view because there is nothing to display");
-					return;
-				}
-				
-				// create text for the web page
-				StringBuffer sb = new StringBuffer();
-				
-				sb.append("<html><body>");
-				sb.append(text);
-				sb.append("</body></html>");
-				
-				// create web page file
-				String fname = Calendar.getInstance().getTime().getTime() + ".tmp.html";
-				PrintWriter pw = null;
-				try {
-					pw = SimpleIO.openFileForOutput(fname);
-				} catch (Exception e1) {
-					log("Caught exception: " + e1.getMessage());
-					return;
-				}
-				
-				pw.println(sb.toString());
-				SimpleIO.close(pw);
-				
-				BrowserDialog bd = new BrowserDialog(shell);
-				File f = new File(fname);
-				String path = f.getAbsolutePath();
-				bd.setURL(path);
-				bd.open();
+				openInBrowserView(requestText.getText());
+
 			}
 		});
-		newItemMenuItem_3.setText("Open In Browser View");
+		openInBrowserView_request_popUp.setText("Open In Browser View");
+
+		final MenuItem newItemMenuItem_3 = new MenuItem(menu_3, SWT.NONE);
+		newItemMenuItem_3.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				
+				String text = getText(new File(SOAP_TEMPLATE_FILE)); 
+				requestText.setText(text);
+				
+			}
+		});
+		newItemMenuItem_3.setText("Populate With SOAP Template");
 
 		final Menu menu_2 = new Menu(endpointCombo);
 		endpointCombo.setMenu(menu_2);
@@ -433,6 +467,7 @@ public class WSExplorer {
 				
 			}
 		});
+		
 		newItemMenuItem.setText("Clear Current Item");
 
 		final MenuItem newItemMenuItem_2 = new MenuItem(menu_2, SWT.NONE);
@@ -556,10 +591,12 @@ public class WSExplorer {
 
 		ProgressBar pb = null;
 		Shell shell = null;
+		AtomicBoolean shouldStopProgressBar = null;
 		
-		public IncrementProgressBar(Shell shell, ProgressBar pb){
+		public IncrementProgressBar(Shell shell, ProgressBar pb, AtomicBoolean shouldStopProgressBar){
 			this.shell = shell;
 			this.pb = pb;
+			this.shouldStopProgressBar = shouldStopProgressBar;
 		}
 		
 		@Override
@@ -607,6 +644,7 @@ public class WSExplorer {
                 new Runnable() {
                 public void run(){
                 	statusText.setText(t);
+                	statusText.setToolTipText(t);
                 }});
 	}
 	
@@ -719,4 +757,36 @@ public class WSExplorer {
 		}
 	}
 
+	/**
+	 * Opens the text given inside a browser view as XML.
+	 * @param text
+	 */
+	public void openInBrowserView(String text){
+		
+		if(text == null || text.equals("")){
+			log("Didn't open browser view because there is nothing to display");
+			return;
+		}
+		
+		
+		// create web page file
+		String fname = Calendar.getInstance().getTime().getTime() + ".tmp.xml";
+		PrintWriter pw = null;
+		try {
+			pw = SimpleIO.openFileForOutput(fname);
+		} catch (Exception e1) {
+			log("Caught exception: " + e1.getMessage());
+			return;
+		}
+		
+		pw.println(text);
+		SimpleIO.close(pw);
+		
+		BrowserDialog bd = new BrowserDialog(shell);
+		File f = new File(fname);
+		String path = f.getAbsolutePath();
+		bd.setURL(path);
+		bd.open();
+
+	}
 }
