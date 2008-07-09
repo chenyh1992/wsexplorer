@@ -4,4 +4,5 @@
 
   # Connect to the SVN repository for this projects
   # Checkout the main folder in the trunk
-  # All project references should be included when you download from SVN
+  # All project references should be included when you download from SVN (except for SWT Designer classes)
+  # Download and install SWT Designer (http://www.swt-designer.com)
