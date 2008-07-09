@@ -26,6 +26,7 @@ import java.io.PrintWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -107,6 +108,8 @@ public class WSExplorer {
 			public void widgetDisposed(final DisposeEvent e) {
 				
 				saveEndpointsToFile();
+				deleteTemporaryFiles();
+				
 			}
 		});
 		//
@@ -371,6 +374,49 @@ public class WSExplorer {
 					.addPreferredGap(LayoutStyle.RELATED, 24, Short.MAX_VALUE)
 					.add(statusText, GroupLayout.PREFERRED_SIZE, 18, GroupLayout.PREFERRED_SIZE))
 		);
+
+		final Menu menu_3 = new Menu(requestText);
+		requestText.setMenu(menu_3);
+
+		final MenuItem newItemMenuItem_3 = new MenuItem(menu_3, SWT.NONE);
+		newItemMenuItem_3.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e){
+				
+				// get text from request text box
+				String text = requestText.getText();
+				if(text == null || text.equals("")){
+					log("Didn't open browser view because there is nothing to display");
+					return;
+				}
+				
+				// create text for the web page
+				StringBuffer sb = new StringBuffer();
+				
+				sb.append("<html><body>");
+				sb.append(text);
+				sb.append("</body></html>");
+				
+				// create web page file
+				String fname = Calendar.getInstance().getTime().getTime() + ".tmp.html";
+				PrintWriter pw = null;
+				try {
+					pw = SimpleIO.openFileForOutput(fname);
+				} catch (Exception e1) {
+					log("Caught exception: " + e1.getMessage());
+					return;
+				}
+				
+				pw.println(sb.toString());
+				SimpleIO.close(pw);
+				
+				BrowserDialog bd = new BrowserDialog(shell);
+				File f = new File(fname);
+				String path = f.getAbsolutePath();
+				bd.setURL(path);
+				bd.open();
+			}
+		});
+		newItemMenuItem_3.setText("Open In Browser View");
 
 		final Menu menu_2 = new Menu(endpointCombo);
 		endpointCombo.setMenu(menu_2);
@@ -655,6 +701,22 @@ public class WSExplorer {
 		}
 		
 		SimpleIO.close(pw);
+	}
+	
+	public void deleteTemporaryFiles(){
+		File f = new File(".");
+		File deleteFile = null;
+		
+		String[] files = f.list(new TempFileFilter());
+		for(int i=0; i<files.length; i++){
+			
+			deleteFile = new File(files[i]);
+			if(deleteFile != null){
+				deleteFile.delete();
+			}
+			
+			deleteFile = null;
+		}
 	}
 
 }
