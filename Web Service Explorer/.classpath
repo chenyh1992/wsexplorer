@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="lib/axis.jar"/>
+	<classpathentry kind="lib" path="lib/commons-discovery-0.2.jar"/>
+	<classpathentry kind="lib" path="lib/commons-logging-1.0.4.jar"/>
+	<classpathentry kind="lib" path="lib/jaxrpc.jar"/>
+	<classpathentry kind="lib" path="lib/saaj.jar"/>
+	<classpathentry kind="lib" path="lib/wsdl4j-1.5.1.jar"/>
+	<classpathentry kind="lib" path="D:/eclipse J2EE/plugins/org.eclipse.jface.text_3.3.1.r331_v20070629.jar" sourcepath="C:/Eclipse/eclipse 3.3/plugins/org.eclipse.platform.source_3.3.0.v20070612-_19UEkLEzwsdF9jSqQ-G/src/org.eclipse.jface.text_3.3.0.v20070606-0010/src.zip"/>
+	<classpathentry kind="lib" path="D:/eclipse J2EE/plugins/org.eclipse.swt.win32.win32.x86_3.3.2.v3347a.jar" sourcepath="C:/Eclipse/eclipse 3.3/plugins/org.eclipse.rcp.source.win32.win32.x86_3.3.0.v20070607-8y8eE8NEbsN3X_fjWS8HPNG/src/org.eclipse.swt.win32.win32.x86_3.3.0.v3346/src.zip"/>
+	<classpathentry kind="lib" path="lib/baseline.jar"/>
+	<classpathentry kind="lib" path="lib/swt-grouplayout.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
