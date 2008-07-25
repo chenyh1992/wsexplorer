@@ -70,6 +70,8 @@ import com.swtdesigner.SWTResourceManager;
 
 public class WSExplorer {
 
+	final static String VERSION = "0.3";
+	
 	final static String ENDPOINTS_FILE = "endpoints.txt";
 	final static String SOAP_TEMPLATE_FILE = "SOAPTemplate.xml";
 	final static String GPLV3_FILE = "gpl-3.0.txt";
@@ -264,7 +266,7 @@ public class WSExplorer {
                 mb.setText("About WSExplorer");
                 mb.setMessage("WSExplorer is an open source program written by Nick Powers.\n" +
                 		"WSExplorer is protected by the GNU General Public License v3 (http://www.gnu.org/licenses/gpl.html).\n\n" +
-                		"Version: 0.2\n" +
+                		"Version: "+VERSION+"\n" +
                 		"Project Site: http://code.google.com/p/wsexplorer/");
                 
                 mb.open();
