@@ -22,7 +22,14 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.X509TrustManager;
 import javax.xml.soap.MessageFactory;
 import javax.xml.soap.SOAPConnection;
 import javax.xml.soap.SOAPConnectionFactory;
@@ -40,6 +47,7 @@ import javax.xml.transform.stream.StreamSource;
 public class WSUtil {
 
 	private static final String ERROR_PREFIX = "Caught an exception: ";
+	public static Exception CURRENT_EXCEPTION = null;
 	
 	public static String sendAndReceiveSOAPMessage(String endpoint, String soapMessage){
 		String response = null;
@@ -62,6 +70,7 @@ public class WSUtil {
 			try {
 				url = new URL(endpoint);
 			} catch (MalformedURLException e1) {
+				CURRENT_EXCEPTION = e1;
 				e1.printStackTrace();
 				return ERROR_PREFIX + "Endpoint given is not a URL";
 			}
@@ -77,6 +86,7 @@ public class WSUtil {
 				transformer = transformerFactory.newTransformer();
 			} catch (TransformerConfigurationException e) {
 				e.printStackTrace();
+				CURRENT_EXCEPTION = e;
 				return ERROR_PREFIX + "Unable to create a Transformer";
 			}
 			
@@ -89,6 +99,7 @@ public class WSUtil {
 				transformer.transform(sourceContent, result);
 			} catch (TransformerException e) {
 				e.printStackTrace();
+				CURRENT_EXCEPTION = e;
 				return ERROR_PREFIX + "Unable to transform the SOAP message into a textual response";
 			}
         
@@ -97,9 +108,41 @@ public class WSUtil {
 			
 		} catch(SOAPException e){
 			e.printStackTrace();
+			CURRENT_EXCEPTION = e;
 			response = ERROR_PREFIX + e.getMessage();
 		}
 		
 		return response;
 	}
+	
+	
+	public static void ignoreCertificates() throws Exception {
+		TrustManager tm = new TrustManager();
+		TrustManager[] trustAllCerts = {tm};
+		
+		// create an all trusting HostnameVerifier
+		HostnameVerifier AllowAllHostnameVerifier = new HostnameVerifier() {
+			public boolean verify(String urlHostName, SSLSession session) {
+				return true;
+			}
+		};
+		
+		// Install the all-trusting trust manager
+		SSLContext sc = SSLContext.getInstance("SSL");
+		sc.init(null, trustAllCerts, new java.security.SecureRandom());
+		HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+		HttpsURLConnection.setDefaultHostnameVerifier(AllowAllHostnameVerifier);
+	}
+	
+	static class TrustManager implements X509TrustManager {
+		@Override
+		public void checkClientTrusted(X509Certificate[] arg0, String arg1)throws CertificateException {}
+
+		@Override
+		public void checkServerTrusted(X509Certificate[] arg0, String arg1)throws CertificateException {}
+
+		@Override
+		public X509Certificate[] getAcceptedIssuers() {return null;}
+	}
+		
 }

@@ -18,7 +18,9 @@ public class TextDialog extends Dialog {
 	protected Object result;
 	protected Shell shell;
 	String text = null;
-
+	String title = null;
+	boolean centered = true;
+	
 	/**
 	 * Create the dialog
 	 * @param parent
@@ -42,6 +44,9 @@ public class TextDialog extends Dialog {
 	 */
 	public Object open() {
 		createContents();
+		
+		if(centered){ GUIUtil.center(shell);}
+		
 		shell.open();
 		shell.layout();
 		Display display = getParent().getDisplay();
@@ -59,7 +64,7 @@ public class TextDialog extends Dialog {
 		shell = new Shell(getParent(), SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
 		shell.setLayout(new GridLayout());
 		shell.setSize(669, 625);
-		shell.setText("SWT Dialog");
+		shell.setText(title);
 
 		text_1 = new Text(shell, SWT.V_SCROLL | SWT.MULTI | SWT.H_SCROLL | SWT.BORDER);
 		text_1.setFont(SWTResourceManager.getFont("Courier New", 10, SWT.NONE));
@@ -88,4 +93,13 @@ public class TextDialog extends Dialog {
 	public void setText(String t){
 		this.text = t;
 	}
+	
+	public void setTitle(String title){
+		this.title = title;
+	}
+
+	public void isCentered(boolean centered){
+		this.centered = centered;
+	}
+
 }

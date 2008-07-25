@@ -26,6 +26,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 
 public class SimpleIO {
@@ -101,6 +102,14 @@ public class SimpleIO {
 	public static boolean exists(String filename) {
 		File file = new File(filename);
 		return (file.exists());
+	}
+	
+	public static void close(InputStream fis){
+		try {
+			fis.close();
+		} catch (IOException e) {
+			// ignore
+		}
 	}
 
 }

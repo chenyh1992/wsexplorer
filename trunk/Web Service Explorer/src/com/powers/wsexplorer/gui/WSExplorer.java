@@ -23,11 +23,14 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
@@ -43,6 +46,7 @@ import org.eclipse.swt.events.DisposeEvent;
 import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.grouplayout.GroupLayout;
 import org.eclipse.swt.layout.grouplayout.LayoutStyle;
@@ -83,6 +87,8 @@ public class WSExplorer {
 	private Text requestText;
 	ProgressBar progressBar;
 	Label statusText;
+	Exception statusTextException;
+	Options options = null;
 	
 	/**
 	 * Launch the application
@@ -107,6 +113,7 @@ public class WSExplorer {
 		shell.setMinimumSize(new Point(620, 665));
 		shell.addDisposeListener(new DisposeListener() {
 			public void widgetDisposed(final DisposeEvent e) {
+				tpe.shutdownNow();
 				
 				saveEndpointsToFile();
 				deleteTemporaryFiles();
@@ -116,7 +123,7 @@ public class WSExplorer {
 		//
 
 		shell.open();
-
+		
 		requestText = new Text(shell, SWT.V_SCROLL | SWT.MULTI | SWT.H_SCROLL | SWT.BORDER);
 		requestText.setFont(SWTResourceManager.getFont("Courier New", 8, SWT.NONE));
 
@@ -191,6 +198,8 @@ public class WSExplorer {
 				
 
 				
+				log("Sending...");
+				statusTextException = null;
 				
 				ExecuteWS aExecuteWS = new ExecuteWS(endpointText, msgText);
 				Future<String> executeWsFuture = ecs.submit(aExecuteWS);
@@ -212,9 +221,25 @@ public class WSExplorer {
 		final MenuItem newSubmenuMenuItem = new MenuItem(menu, SWT.CASCADE);
 		newSubmenuMenuItem.setText("File");
 
+		// main menu
 		final Menu menu_1 = new Menu(newSubmenuMenuItem);
 		newSubmenuMenuItem.setMenu(menu_1);
 
+		// menu item 1 - OPTIONS
+		final MenuItem optionsMenuItem = new MenuItem(menu_1, SWT.NONE);
+		optionsMenuItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				
+				OptionsDialog od = new OptionsDialog(shell);
+				od.setOptions(options);
+				String resultMessage = (String)od.open();
+				log(resultMessage);
+			}
+		});
+		
+		optionsMenuItem.setText("Options");
+		
+		// menu item 2 - EXIT
 		final MenuItem newItemMenuItem_1 = new MenuItem(menu_1, SWT.NONE);
 		newItemMenuItem_1.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
@@ -223,6 +248,8 @@ public class WSExplorer {
 		});
 		
 		newItemMenuItem_1.setText("Exit");
+		
+
 
 		final MenuItem helpMenu = new MenuItem(menu, SWT.CASCADE);
 		helpMenu.setText("Help");
@@ -251,6 +278,7 @@ public class WSExplorer {
 			public void widgetSelected(final SelectionEvent e) {
 				
 				TextDialog td = new TextDialog(shell);
+				td.setTitle("GPL License");
 				td.setText(getText(new File(GPLV3_FILE)));
 				td.open();
 				
@@ -262,6 +290,7 @@ public class WSExplorer {
 		toolBar = new ToolBar(shell, SWT.NONE);
 
 		final ToolItem newItemToolItem_5 = new ToolItem(toolBar, SWT.PUSH);
+		newItemToolItem_5.setText("Save");
 		newItemToolItem_5.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				
@@ -289,7 +318,7 @@ public class WSExplorer {
 			}
 		});
 		newItemToolItem_5.setToolTipText("Save the text in the Request TextBox");
-		newItemToolItem_5.setText("Save");
+
 
 		final ToolItem newItemToolItem_6 = new ToolItem(toolBar, SWT.PUSH);
 		newItemToolItem_6.addSelectionListener(new SelectionAdapter() {
@@ -345,6 +374,37 @@ public class WSExplorer {
 		statusText = new Label(shell, SWT.BORDER);
 		statusText.setToolTipText("Status Messages Appear Here");
 		statusText.setBackground(SWTResourceManager.getColor(192, 192, 192));
+		
+		
+		// Popup for Status Text
+		final Menu statusTextPopUpMenu = new Menu(statusText);
+		statusText.setMenu(statusTextPopUpMenu);
+
+		// View Stack Trace Menu Item
+		final MenuItem seeStackTrace_statusText_menuItem = new MenuItem(statusTextPopUpMenu, SWT.NONE);
+		seeStackTrace_statusText_menuItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				if(statusTextException != null){
+					TextDialog td = new TextDialog(shell);
+					td.setTitle("Stack Trace");
+					td.setText(getStrackTraceAsString(statusTextException));
+					td.open();
+				}
+				
+			}
+		});
+		seeStackTrace_statusText_menuItem.setText("See Full Stack Trace");
+		
+		// Clear Status Menu Item
+		final MenuItem clearStatusText_menuItem = new MenuItem(statusTextPopUpMenu, SWT.NONE);
+		clearStatusText_menuItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				log("");
+			}
+		});
+		clearStatusText_menuItem.setText("Clear Status");
+		
+		
 		final GroupLayout groupLayout = new GroupLayout(shell);
 		groupLayout.setHorizontalGroup(
 			groupLayout.createParallelGroup(GroupLayout.LEADING)
@@ -488,11 +548,36 @@ public class WSExplorer {
 		newItemMenuItem_2.setText("Clear All Items");
 		shell.setLayout(groupLayout);
 		shell.layout();
+		
+		
+		// ===================================================
+		// do any finishing stuff with fully populated widgets
+		// ===================================================
+		
+		options = getOptions();
+		
+		if(options.ignoreHostCertificates){
+			try {
+				WSUtil.ignoreCertificates();
+			} catch (Exception e) {
+				log(e.getMessage(), e);
+				statusTextException = e;
+				e.printStackTrace();
+			}
+		}
+		
+		// ===================================================
+		// done with dealing with fully populated widgets
+		// ===================================================
+		
 		while (!shell.isDisposed()) {
 			if (!display.readAndDispatch())
 				display.sleep();
 		}
 		shell.pack();
+		
+		
+		
 	}
 
 	/**
@@ -557,6 +642,7 @@ public class WSExplorer {
 				if(text.contains("exception")){
 					statusStringToSet.append(text);
 					responseStringToSet.append("No response was given");
+					statusTextException = WSUtil.CURRENT_EXCEPTION;
 				} else {
 					responseStringToSet.append(text);
 					statusStringToSet.append("Got a response");
@@ -644,7 +730,15 @@ public class WSExplorer {
                 new Runnable() {
                 public void run(){
                 	statusText.setText(t);
-                	statusText.setToolTipText(t);
+                }});
+	}
+	
+	public void log(final String t, final Exception e){
+        shell.getDisplay().asyncExec(
+                new Runnable() {
+                public void run(){
+                	statusText.setText(t);
+                	statusTextException = e;
                 }});
 	}
 	
@@ -788,5 +882,23 @@ public class WSExplorer {
 		bd.setURL(path);
 		bd.open();
 
+	}
+	
+	public String getStrackTraceAsString(Throwable t){
+		if(t == null) { return null; }
+		
+		final Writer result = new StringWriter();
+	    final PrintWriter printWriter = new PrintWriter(result);
+	    t.printStackTrace(printWriter);
+	    return result.toString();
+	}
+	
+	public Options getOptions(){
+		Options o = new Options();
+		Properties options = GUIUtil.readPropertiesFile(OptionsDialog.OPTIONS_FILE);
+		o.ignoreHostCertificates = Boolean.valueOf((String)options.get(Options.IGNORE_HOST_CERTIFICATS_KEY));
+		// add any more options...
+		
+		return o;
 	}
 }
