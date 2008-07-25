@@ -9,6 +9,7 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Dialog;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 
 public class OptionsDialog extends Dialog {
@@ -86,11 +87,15 @@ public class OptionsDialog extends Dialog {
 
 		final Group sendOptionsGroup = new Group(shell, SWT.NONE);
 		sendOptionsGroup.setText("Send Options");
-		sendOptionsGroup.setBounds(10, 10, 255, 163);
+		sendOptionsGroup.setBounds(10, 10, 302, 163);
 
 		ignoreHostCertificatesButton = new Button(sendOptionsGroup, SWT.CHECK);
 		ignoreHostCertificatesButton.setBounds(10, 21,195, 16);
-		ignoreHostCertificatesButton.setText("Ignore Host Certificates (for HTTPS)");
+		ignoreHostCertificatesButton.setText("Ignore Host Certificates (for HTTPS)*");
+
+		final Label restartRequiredLabel = new Label(shell, SWT.NONE);
+		restartRequiredLabel.setText("* Restart Required");
+		restartRequiredLabel.setBounds(10, 176, 123, 13);
 		//
 	}
 	
