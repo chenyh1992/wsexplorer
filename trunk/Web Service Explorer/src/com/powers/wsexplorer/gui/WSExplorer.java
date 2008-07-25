@@ -896,9 +896,11 @@ public class WSExplorer {
 	public Options getOptions(){
 		Options o = new Options();
 		Properties options = GUIUtil.readPropertiesFile(OptionsDialog.OPTIONS_FILE);
-		o.ignoreHostCertificates = Boolean.valueOf((String)options.get(Options.IGNORE_HOST_CERTIFICATS_KEY));
-		// add any more options...
-		
+		if(options != null){
+			o.ignoreHostCertificates = Boolean.valueOf((String)options.get(Options.IGNORE_HOST_CERTIFICATS_KEY));
+			// add any more options...
+		}
+
 		return o;
 	}
 }
