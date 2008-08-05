@@ -34,12 +34,15 @@ import java.util.Properties;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.xml.soap.SOAPConnection;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.DisposeEvent;
@@ -74,12 +77,19 @@ public class WSExplorer {
 	final static String ENDPOINTS_FILE = "endpoints.txt";
 	final static String SOAP_TEMPLATE_FILE = "SOAPTemplate.xml";
 	final static String GPLV3_FILE = "gpl-3.0.txt";
+	final static String SECONDS = "Seconds";
+	final static String MILLISECONDS = "Milliseconds";
+	final static String[] TIMEOUT_CHOICES = {SECONDS, MILLISECONDS};
+	transient boolean CancelWasPressed = false;
+	static SOAPConnection CONNECTION = null;
+	
 	final Shell shell = new Shell();
 	
 	BlockingQueue<Runnable> q = new ArrayBlockingQueue<Runnable>(10);
 	ThreadPoolExecutor tpe = new ThreadPoolExecutor(5, 10, 10, TimeUnit.SECONDS, q);
 	CompletionService<String> ecs = new ExecutorCompletionService<String>(tpe);
 	
+	AtomicBoolean isSending = new AtomicBoolean(false);
 	AtomicBoolean shouldStopProgressBar = new AtomicBoolean(false);
 	List<String> comboItems = getEndpointHistory();
 	
@@ -90,6 +100,7 @@ public class WSExplorer {
 	Label statusText;
 	Exception statusTextException;
 	Options options = null;
+	Button cancelButton = null;
 	
 	/**
 	 * Launch the application
@@ -187,6 +198,7 @@ public class WSExplorer {
 				boolean save = true;
 				// check if we really want to save this...
 				try {
+					@SuppressWarnings("unused")
 					URL url = new URL(endpointText);
 				} catch(MalformedURLException me){
 					// don't save 
@@ -198,11 +210,25 @@ public class WSExplorer {
 				}
 				
 
+				// clear response text
+				responseText.setText("");
 				
+				// set status bar...
 				log("Sending...");
 				statusTextException = null;
+				cancelButton.setEnabled(true);
 				
-				ExecuteWS aExecuteWS = new ExecuteWS(endpointText, msgText);
+				CONNECTION = WSUtil.getConnection();
+				
+				//TODO: do one per send...
+				
+				if(isSending.get()){
+					log("Currently sending a message. You can only send one at a time...");
+					return;
+				}
+				
+				isSending.set(true);
+				ExecuteWS aExecuteWS = new ExecuteWS(endpointText, msgText, CONNECTION);
 				Future<String> executeWsFuture = ecs.submit(aExecuteWS);
 				
 				PopulateResponse aPopulateResponse = new PopulateResponse(shell, responseText, progressBar, statusText, executeWsFuture);
@@ -404,77 +430,6 @@ public class WSExplorer {
 			}
 		});
 		clearStatusText_menuItem.setText("Clear Status");
-		
-		
-		final GroupLayout groupLayout = new GroupLayout(shell);
-		groupLayout.setHorizontalGroup(
-			groupLayout.createParallelGroup(GroupLayout.LEADING)
-				.add(toolBar, GroupLayout.DEFAULT_SIZE, 824, Short.MAX_VALUE)
-				.add(groupLayout.createSequentialGroup()
-					.addContainerGap()
-					.add(wsExplorerLabel, GroupLayout.PREFERRED_SIZE, 143, GroupLayout.PREFERRED_SIZE)
-					.addContainerGap(672, Short.MAX_VALUE))
-				.add(groupLayout.createSequentialGroup()
-					.addContainerGap()
-					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-						.add(endpointLabel)
-						.add(endpointCombo, GroupLayout.DEFAULT_SIZE, 534, Short.MAX_VALUE))
-					.add(281, 281, 281))
-				.add(groupLayout.createSequentialGroup()
-					.addContainerGap()
-					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-						.add(requestText, GroupLayout.DEFAULT_SIZE, 775, Short.MAX_VALUE)
-						.add(groupLayout.createSequentialGroup()
-							.add(1, 1, 1)
-							.add(requestLabel, GroupLayout.PREFERRED_SIZE, 69, GroupLayout.PREFERRED_SIZE)))
-					.add(40, 40, 40))
-				.add(GroupLayout.TRAILING, groupLayout.createSequentialGroup()
-					.addContainerGap()
-					.add(groupLayout.createParallelGroup(GroupLayout.TRAILING)
-						.add(GroupLayout.LEADING, responseText, GroupLayout.DEFAULT_SIZE, 776, Short.MAX_VALUE)
-						.add(GroupLayout.LEADING, groupLayout.createSequentialGroup()
-							.add(1, 1, 1)
-							.add(responseLabel, GroupLayout.PREFERRED_SIZE, 69, GroupLayout.PREFERRED_SIZE)
-							.addPreferredGap(LayoutStyle.RELATED, 705, Short.MAX_VALUE))
-						.add(groupLayout.createSequentialGroup()
-							.add(sendButton2, GroupLayout.PREFERRED_SIZE, 60, GroupLayout.PREFERRED_SIZE)
-							.addPreferredGap(LayoutStyle.RELATED, 529, Short.MAX_VALUE)
-							.add(progressBar, GroupLayout.PREFERRED_SIZE, 187, GroupLayout.PREFERRED_SIZE)))
-					.add(39, 39, 39))
-				.add(GroupLayout.TRAILING, statusText, GroupLayout.DEFAULT_SIZE, 824, Short.MAX_VALUE)
-		);
-		groupLayout.setVerticalGroup(
-			groupLayout.createParallelGroup(GroupLayout.LEADING)
-				.add(groupLayout.createSequentialGroup()
-					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-						.add(groupLayout.createSequentialGroup()
-							.add(toolBar, GroupLayout.PREFERRED_SIZE, 25, GroupLayout.PREFERRED_SIZE)
-							.add(51, 51, 51)
-							.add(endpointLabel)
-							.addPreferredGap(LayoutStyle.RELATED)
-							.add(endpointCombo, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-							.add(22, 22, 22)
-							.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-								.add(requestLabel, GroupLayout.PREFERRED_SIZE, 17, GroupLayout.PREFERRED_SIZE)
-								.add(groupLayout.createSequentialGroup()
-									.add(16, 16, 16)
-									.add(requestText, GroupLayout.PREFERRED_SIZE, 190, GroupLayout.PREFERRED_SIZE)))
-							.add(18, 18, 18)
-							.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-								.add(responseLabel, GroupLayout.PREFERRED_SIZE, 17, GroupLayout.PREFERRED_SIZE)
-								.add(groupLayout.createSequentialGroup()
-									.add(16, 16, 16)
-									.add(responseText, GroupLayout.PREFERRED_SIZE, 167, GroupLayout.PREFERRED_SIZE))))
-						.add(groupLayout.createSequentialGroup()
-							.add(32, 32, 32)
-							.add(wsExplorerLabel, GroupLayout.PREFERRED_SIZE, 28, GroupLayout.PREFERRED_SIZE)))
-					.add(7, 7, 7)
-					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-						.add(progressBar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-						.add(sendButton2))
-					.addPreferredGap(LayoutStyle.RELATED, 24, Short.MAX_VALUE)
-					.add(statusText, GroupLayout.PREFERRED_SIZE, 18, GroupLayout.PREFERRED_SIZE))
-		);
 
 		final Menu menu_4 = new Menu(responseText);
 		responseText.setMenu(menu_4);
@@ -547,6 +502,91 @@ public class WSExplorer {
 			}
 		});
 		newItemMenuItem_2.setText("Clear All Items");
+
+		cancelButton = new Button(shell, SWT.NONE);
+		cancelButton.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				CancelWasPressed = true;
+				log("Cancelling current operation...");
+			}
+		});
+		cancelButton.setToolTipText("Cancel the current operation.");
+		cancelButton.setText("Cancel");
+		
+		cancelButton.setEnabled(false);
+		
+		final GroupLayout groupLayout = new GroupLayout(shell);
+		groupLayout.setHorizontalGroup(
+			groupLayout.createParallelGroup(GroupLayout.LEADING)
+				.add(toolBar, GroupLayout.DEFAULT_SIZE, 612, Short.MAX_VALUE)
+				.add(groupLayout.createSequentialGroup()
+					.addContainerGap()
+					.add(wsExplorerLabel, GroupLayout.PREFERRED_SIZE, 143, GroupLayout.PREFERRED_SIZE)
+					.addContainerGap(460, Short.MAX_VALUE))
+				.add(groupLayout.createSequentialGroup()
+					.addContainerGap()
+					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
+						.add(responseText, GroupLayout.DEFAULT_SIZE, 564, Short.MAX_VALUE)
+						.add(groupLayout.createSequentialGroup()
+							.add(1, 1, 1)
+							.add(responseLabel, GroupLayout.PREFERRED_SIZE, 69, GroupLayout.PREFERRED_SIZE)
+							.addPreferredGap(LayoutStyle.RELATED, 494, Short.MAX_VALUE))
+						.add(groupLayout.createSequentialGroup()
+							.add(sendButton2, GroupLayout.PREFERRED_SIZE, 60, GroupLayout.PREFERRED_SIZE)
+							.addPreferredGap(LayoutStyle.RELATED, 252, Short.MAX_VALUE)
+							.add(cancelButton, GroupLayout.PREFERRED_SIZE, 60, GroupLayout.PREFERRED_SIZE)
+							.addPreferredGap(LayoutStyle.RELATED)
+							.add(progressBar, GroupLayout.PREFERRED_SIZE, 187, GroupLayout.PREFERRED_SIZE)))
+					.add(39, 39, 39))
+				.add(statusText, GroupLayout.DEFAULT_SIZE, 612, Short.MAX_VALUE)
+				.add(groupLayout.createSequentialGroup()
+					.addContainerGap()
+					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
+						.add(requestText, GroupLayout.DEFAULT_SIZE, 563, Short.MAX_VALUE)
+						.add(groupLayout.createSequentialGroup()
+							.add(1, 1, 1)
+							.add(requestLabel, GroupLayout.PREFERRED_SIZE, 69, GroupLayout.PREFERRED_SIZE))
+						.add(groupLayout.createSequentialGroup()
+							.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
+								.add(endpointLabel)
+								.add(endpointCombo, GroupLayout.DEFAULT_SIZE, 464, Short.MAX_VALUE))
+							.add(99, 99, 99)))
+					.add(40, 40, 40))
+		);
+		groupLayout.setVerticalGroup(
+			groupLayout.createParallelGroup(GroupLayout.LEADING)
+				.add(groupLayout.createSequentialGroup()
+					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
+						.add(groupLayout.createSequentialGroup()
+							.add(toolBar, GroupLayout.PREFERRED_SIZE, 25, GroupLayout.PREFERRED_SIZE)
+							.add(51, 51, 51)
+							.add(endpointLabel)
+							.addPreferredGap(LayoutStyle.RELATED)
+							.add(endpointCombo, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+							.add(22, 22, 22)
+							.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
+								.add(requestLabel, GroupLayout.PREFERRED_SIZE, 17, GroupLayout.PREFERRED_SIZE)
+								.add(groupLayout.createSequentialGroup()
+									.add(16, 16, 16)
+									.add(requestText, GroupLayout.DEFAULT_SIZE, 189, Short.MAX_VALUE)))
+							.add(18, 18, 18)
+							.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
+								.add(responseLabel, GroupLayout.PREFERRED_SIZE, 17, GroupLayout.PREFERRED_SIZE)
+								.add(groupLayout.createSequentialGroup()
+									.add(16, 16, 16)
+									.add(responseText, GroupLayout.DEFAULT_SIZE, 168, Short.MAX_VALUE))))
+						.add(groupLayout.createSequentialGroup()
+							.add(32, 32, 32)
+							.add(wsExplorerLabel, GroupLayout.PREFERRED_SIZE, 28, GroupLayout.PREFERRED_SIZE)))
+					.add(7, 7, 7)
+					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
+						.add(progressBar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+						.add(groupLayout.createParallelGroup(GroupLayout.BASELINE)
+							.add(sendButton2)
+							.add(cancelButton)))
+					.add(17, 17, 17)
+					.add(statusText, GroupLayout.PREFERRED_SIZE, 18, GroupLayout.PREFERRED_SIZE))
+		);
 		shell.setLayout(groupLayout);
 		shell.layout();
 		
@@ -589,15 +629,17 @@ public class WSExplorer {
 
 		String endpointURL = null;
 		String soapMessage = null;
+		SOAPConnection connection = null;
 		
-		public ExecuteWS(String endpointURL, String soapMessage){
+		public ExecuteWS(String endpointURL, String soapMessage, SOAPConnection connection){
 			this.endpointURL = endpointURL;
 			this.soapMessage = soapMessage;
+			this.connection = connection;
 		}
 		
 		@Override
 		public String call() throws Exception {
-			return WSUtil.sendAndReceiveSOAPMessage(endpointURL, soapMessage);
+			return WSUtil.sendAndReceiveSOAPMessage(endpointURL, soapMessage, connection);
 		}
 		
 	}
@@ -632,15 +674,31 @@ public class WSExplorer {
 			final StringBuffer responseStringToSet = new StringBuffer();
 			
 			while(!future.isDone()){
-				// sleep
-				Thread.sleep(300);
+				// check if cancel was clicked...
+				if(CancelWasPressed) {
+					if(CONNECTION != null) {CONNECTION.close(); CONNECTION = null;}
+					cancelSoapSend(future);
+				} else {
+					// sleep
+					Thread.sleep(300);
+				}
 			}
 			
-			String text = future.get();
+			isSending.set(false);
+			String text = "";
+			try {
+				text = future.get();
+			} catch(CancellationException e){
+				statusStringToSet.append("Operation was cancelled successfully");
+			}
 			
-			if(text != null && !text.equals("")){
+			// close the connection if it's open
+			if(CONNECTION != null) {CONNECTION.close();}
+			
+			System.out.println("Text from the call: "+text);
+			if(text != null && !text.equals("") && !CancelWasPressed){
 				
-				if(text.contains("exception")){
+				if(text.contains(WSUtil.ERROR_PREFIX)){
 					statusStringToSet.append(text);
 					responseStringToSet.append("No response was given");
 					statusTextException = WSUtil.CURRENT_EXCEPTION;
@@ -649,9 +707,12 @@ public class WSExplorer {
 					statusStringToSet.append("Got a response");
 				}
 			} else {
-				statusStringToSet.append("Did not get a response back from Service");
+				if(!CancelWasPressed){
+					statusStringToSet.append("Did not get a response back from Service");
+				}
 			}
 			
+			CancelWasPressed = false;
 			
             shell.getDisplay().asyncExec(
                     new Runnable() {
@@ -660,6 +721,7 @@ public class WSExplorer {
                     	statusText.setText(statusStringToSet.toString());
                     	shouldStopProgressBar.set(true);
                     	pb.setSelection(100);
+                    	cancelButton.setEnabled(false);
                     }});
 
 			
@@ -903,5 +965,22 @@ public class WSExplorer {
 		}
 
 		return o;
+	}
+	
+	/**
+	 * Cancel the current sending operation.
+	 * @param future
+	 */
+	public void cancelSoapSend(Future<String> future){
+		future.cancel(true);
+	}
+	
+	public void setCancelButton(final boolean enable){
+        shell.getDisplay().asyncExec(
+                new Runnable() {
+                public void run(){
+                	cancelButton.setEnabled(enable);
+                }});
+		
 	}
 }
