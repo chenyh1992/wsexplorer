@@ -46,15 +46,45 @@ import javax.xml.transform.stream.StreamSource;
 
 public class WSUtil {
 
-	private static final String ERROR_PREFIX = "Caught an exception: ";
+	public static final String ERROR_PREFIX = "Expletive! I Caught an exception: ";
 	public static Exception CURRENT_EXCEPTION = null;
 	
+	public static SOAPConnection getConnection(){
+		SOAPConnectionFactory soapConnFactory;
+		SOAPConnection connection = null;
+		
+		try {
+			soapConnFactory = SOAPConnectionFactory.newInstance();
+			connection = soapConnFactory.createConnection();
+		} catch (UnsupportedOperationException e) {
+			return null;
+		} catch (SOAPException e) {
+			return null;
+		}
+		
+		return connection;
+	}
+	/**
+	 * 
+	 * @param endpoint
+	 * @param soapMessage
+	 * @param timeout
+	 * @return
+	 */
 	public static String sendAndReceiveSOAPMessage(String endpoint, String soapMessage){
+		return sendAndReceiveSOAPMessage(endpoint, soapMessage, null);
+	}
+	
+	public static String sendAndReceiveSOAPMessage(String endpoint, String soapMessage, SOAPConnection connection){
 		String response = null;
 		
 		try {
-			SOAPConnectionFactory soapConnFactory = SOAPConnectionFactory.newInstance();
-			SOAPConnection connection =  soapConnFactory.createConnection();
+			
+			if(connection == null){
+				SOAPConnectionFactory soapConnFactory = SOAPConnectionFactory.newInstance();
+				connection =  soapConnFactory.createConnection();	
+			}
+
 			MessageFactory messageFactory = MessageFactory.newInstance();
 	        SOAPMessage message = messageFactory.createMessage();
 	        SOAPPart soapPart = message.getSOAPPart();
@@ -74,7 +104,7 @@ public class WSUtil {
 				e1.printStackTrace();
 				return ERROR_PREFIX + "Endpoint given is not a URL";
 			}
-	        
+			
 			SOAPMessage reply = connection.call(message, url);
 	        
 	        //Create the transformer
@@ -114,7 +144,6 @@ public class WSUtil {
 		
 		return response;
 	}
-	
 	
 	public static void ignoreCertificates() throws Exception {
 		TrustManager tm = new TrustManager();
