@@ -198,8 +198,7 @@ public class WSExplorer {
 				boolean save = true;
 				// check if we really want to save this...
 				try {
-					@SuppressWarnings("unused")
-					URL url = new URL(endpointText);
+					new URL(endpointText);
 				} catch(MalformedURLException me){
 					// don't save 
 					save = false;
@@ -219,8 +218,6 @@ public class WSExplorer {
 				cancelButton.setEnabled(true);
 				
 				CONNECTION = WSUtil.getConnection();
-				
-				//TODO: do one per send...
 				
 				if(isSending.get()){
 					log("Currently sending a message. You can only send one at a time...");
