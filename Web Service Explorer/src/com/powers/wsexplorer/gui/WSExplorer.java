@@ -122,6 +122,7 @@ public class WSExplorer {
 		final Display display = Display.getDefault();
 		
 		shell.setText("WS Explorer");
+		shell.setImage(SWTResourceManager.getImage(WSExplorer.class, "/Earth-Scan-16x16.png"));
 		shell.setMinimumSize(new Point(620, 665));
 		shell.addDisposeListener(new DisposeListener() {
 			public void widgetDisposed(final DisposeEvent e) {
