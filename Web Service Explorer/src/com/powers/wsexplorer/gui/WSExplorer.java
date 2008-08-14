@@ -72,7 +72,7 @@ import com.swtdesigner.SWTResourceManager;
 
 public class WSExplorer {
 
-	final static String VERSION = "0.3";
+	final static String VERSION = "0.4";
 	
 	final static String ENDPOINTS_FILE = "endpoints.txt";
 	final static String SOAP_TEMPLATE_FILE = "SOAPTemplate.xml";
