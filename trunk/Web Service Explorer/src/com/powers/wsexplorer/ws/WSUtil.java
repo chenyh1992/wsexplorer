@@ -18,6 +18,8 @@
 
 package com.powers.wsexplorer.ws;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.net.MalformedURLException;
@@ -43,6 +45,15 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
+
+import org.jdom.input.SAXBuilder;
+import org.jdom.output.Format;
+import org.jdom.output.XMLOutputter;
+import org.jdom.Document;
+import org.jdom.JDOMException;
+
+import com.sun.org.apache.xml.internal.serialize.OutputFormat;
+import com.sun.org.apache.xml.internal.serialize.XMLSerializer;
 
 public class WSUtil {
 
@@ -143,6 +154,30 @@ public class WSUtil {
 		}
 		
 		return response;
+	}
+	
+	/**
+	 * Pretty print the XML string given to this method.
+	 * 
+	 * @param xml String to be pretty printed
+	 * @return null if it's a malformed document, pretty printed XML otherwise
+	 */
+	public static String prettyPrint(String xml){
+		Document document = null;
+		SAXBuilder parser = new SAXBuilder();
+		StringWriter sw = new StringWriter();
+		
+		try {
+			document = parser.build(new StringReader(xml));
+			XMLOutputter out = new XMLOutputter();
+			out.setFormat(Format.getPrettyFormat());
+			out.output(document, sw);
+			
+		} catch (Exception e) {
+			return null;
+		}
+		
+		return (sw == null ? null : sw.toString());
 	}
 	
 	public static void ignoreCertificates() throws Exception {

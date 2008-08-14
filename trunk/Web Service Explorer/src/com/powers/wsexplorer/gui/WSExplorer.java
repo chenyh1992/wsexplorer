@@ -428,10 +428,10 @@ public class WSExplorer {
 		});
 		clearStatusText_menuItem.setText("Clear Status");
 
-		final Menu menu_4 = new Menu(responseText);
-		responseText.setMenu(menu_4);
+		final Menu responsePopUpMenu = new Menu(responseText);
+		responseText.setMenu(responsePopUpMenu);
 
-		final MenuItem openInBrowserView_response_popUp = new MenuItem(menu_4, SWT.NONE);
+		final MenuItem openInBrowserView_response_popUp = new MenuItem(responsePopUpMenu, SWT.NONE);
 		openInBrowserView_response_popUp.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				
@@ -441,10 +441,35 @@ public class WSExplorer {
 		});
 		openInBrowserView_response_popUp.setText("Open In Browser View");
 
-		final Menu menu_3 = new Menu(requestText);
-		requestText.setMenu(menu_3);
+		
+		// pretty print menu item for response text box
+		final MenuItem prettyPrint_response_popUp = new MenuItem(responsePopUpMenu, SWT.NONE);
+		prettyPrint_response_popUp.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				String text = responseText.getText();
+				if(text == null || ("").equalsIgnoreCase(text)){
+					log("Did not pretty print...there is nothing to format!");
+					return;
+				}
+				
+				String prettyText = null;
+				try {
+					prettyText = WSUtil.prettyPrint(text);
+					responseText.setText(prettyText);
+					log("Text was pretty printed");
+				}catch (Exception ex){
+					log("Unable to pretty print due to malformed XML");
+				}
+				
+			}
+		});
+		prettyPrint_response_popUp.setText("Pretty Print");
+		
+		
+		final Menu requestPopUpMenu = new Menu(requestText);
+		requestText.setMenu(requestPopUpMenu);
 
-		final MenuItem openInBrowserView_request_popUp = new MenuItem(menu_3, SWT.NONE);
+		final MenuItem openInBrowserView_request_popUp = new MenuItem(requestPopUpMenu, SWT.NONE);
 		openInBrowserView_request_popUp.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e){
 				
@@ -454,7 +479,7 @@ public class WSExplorer {
 		});
 		openInBrowserView_request_popUp.setText("Open In Browser View");
 
-		final MenuItem newItemMenuItem_3 = new MenuItem(menu_3, SWT.NONE);
+		final MenuItem newItemMenuItem_3 = new MenuItem(requestPopUpMenu, SWT.NONE);
 		newItemMenuItem_3.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				
@@ -465,6 +490,32 @@ public class WSExplorer {
 		});
 		newItemMenuItem_3.setText("Populate With SOAP Template");
 
+		// pretty print menu item for request text box
+		final MenuItem prettyPrint_request_popUp = new MenuItem(requestPopUpMenu, SWT.NONE);
+		prettyPrint_request_popUp.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				String text = requestText.getText();
+				if(text == null || ("").equalsIgnoreCase(text)){
+					log("Did not pretty print...there is nothing to format!");
+					return;
+				}
+				
+				String prettyText = null;
+				try {
+					prettyText = WSUtil.prettyPrint(text);
+					requestText.setText(prettyText);
+					log("Text was pretty printed");
+				}catch (Exception ex){
+					log("Unable to pretty print due to malformed XML");
+				}
+				
+			}
+		});
+		prettyPrint_request_popUp.setText("Pretty Print");
+		
+		
+		
+		
 		final Menu menu_2 = new Menu(endpointCombo);
 		endpointCombo.setMenu(menu_2);
 
