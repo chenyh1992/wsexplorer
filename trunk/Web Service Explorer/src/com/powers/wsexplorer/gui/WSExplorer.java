@@ -47,6 +47,8 @@ import javax.xml.soap.SOAPConnection;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.DisposeEvent;
 import org.eclipse.swt.events.DisposeListener;
+import org.eclipse.swt.events.KeyAdapter;
+import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Point;
@@ -72,35 +74,39 @@ import com.swtdesigner.SWTResourceManager;
 
 public class WSExplorer {
 
-	final static String VERSION = "0.4";
+	final static String VERSION = "0.5";
+	final int CONTROL_A = 'A' - 0x40; // the "control A" character
+	final int CONTROL_S = 'S' - 0x40; // the "control S" character
+	final int CONTROL_F = 'F' - 0x40; // the "control S" character
 	
-	final static String ENDPOINTS_FILE = "endpoints.txt";
-	final static String SOAP_TEMPLATE_FILE = "SOAPTemplate.xml";
-	final static String GPLV3_FILE = "gpl-3.0.txt";
-	final static String SECONDS = "Seconds";
-	final static String MILLISECONDS = "Milliseconds";
+	private final static String ENDPOINTS_FILE = "endpoints.txt";
+	private final static String SOAP_TEMPLATE_FILE = "SOAPTemplate.xml";
+	private final static String GPLV3_FILE = "gpl-3.0.txt";
+	private final static String SECONDS = "Seconds";
+	private final static String MILLISECONDS = "Milliseconds";
 	final static String[] TIMEOUT_CHOICES = {SECONDS, MILLISECONDS};
-	transient boolean CancelWasPressed = false;
-	static SOAPConnection CONNECTION = null;
+	private transient boolean CancelWasPressed = false;
+	private static SOAPConnection CONNECTION = null;
 	
-	final Shell shell = new Shell();
+	private final Shell shell = new Shell();
 	
-	BlockingQueue<Runnable> q = new ArrayBlockingQueue<Runnable>(10);
-	ThreadPoolExecutor tpe = new ThreadPoolExecutor(5, 10, 10, TimeUnit.SECONDS, q);
-	CompletionService<String> ecs = new ExecutorCompletionService<String>(tpe);
+	private BlockingQueue<Runnable> q = new ArrayBlockingQueue<Runnable>(10);
+	private ThreadPoolExecutor tpe = new ThreadPoolExecutor(5, 10, 10, TimeUnit.SECONDS, q);
+	private CompletionService<String> ecs = new ExecutorCompletionService<String>(tpe);
 	
-	AtomicBoolean isSending = new AtomicBoolean(false);
-	AtomicBoolean shouldStopProgressBar = new AtomicBoolean(false);
-	List<String> comboItems = getEndpointHistory();
+	private AtomicBoolean isSending = new AtomicBoolean(false);
+	private AtomicBoolean shouldStopProgressBar = new AtomicBoolean(false);
+	private List<String> comboItems = getEndpointHistory();
 	
 	private Combo endpointCombo;
 	private Text responseText;
 	private Text requestText;
-	ProgressBar progressBar;
-	Label statusText;
-	Exception statusTextException;
-	Options options = null;
-	Button cancelButton = null;
+	private ProgressBar progressBar;
+	private Label statusText;
+	private Exception statusTextException;
+	private Options options = null;
+	private Button cancelButton = null;
+	private Label timeElapsedLabel;
 	
 	/**
 	 * Launch the application
@@ -138,6 +144,15 @@ public class WSExplorer {
 		shell.open();
 		
 		requestText = new Text(shell, SWT.V_SCROLL | SWT.MULTI | SWT.H_SCROLL | SWT.BORDER);
+		requestText.addKeyListener(new KeyAdapter() {
+			public void keyPressed(final KeyEvent e) {
+		          if (e.character == CONTROL_A) {
+		        	  requestText.selectAll();
+		           } else if(e.character == CONTROL_S){
+		        	   saveToFile(requestText.getText());
+		           }
+			}
+		});
 		requestText.setFont(SWTResourceManager.getFont("Courier New", 8, SWT.NONE));
 
 		Label requestLabel;
@@ -145,6 +160,15 @@ public class WSExplorer {
 		requestLabel.setText("Request");
 
 		responseText = new Text(shell, SWT.V_SCROLL | SWT.MULTI | SWT.H_SCROLL | SWT.BORDER);
+		responseText.addKeyListener(new KeyAdapter() {
+			public void keyPressed(final KeyEvent e) {
+	          if (e.character == CONTROL_A) {
+	        	  responseText.selectAll();
+	           } else if(e.character == CONTROL_S){
+	        	   saveToFile(responseText.getText());
+	           }
+			}
+		});
 		responseText.setFont(SWTResourceManager.getFont("Courier New", 8, SWT.NONE));
 
 		Label responseLabel;
@@ -235,6 +259,11 @@ public class WSExplorer {
 				IncrementProgressBar aIncrementProgressBar = new IncrementProgressBar(shell, progressBar, shouldStopProgressBar);
 				ecs.submit(aIncrementProgressBar);
 				
+				IncrementTimeElapsed aIncrementTimeElapsed = new IncrementTimeElapsed(isSending);
+				Future<String> timeElapsedFuture = ecs.submit(aIncrementTimeElapsed);
+				
+				PopulateTimeElapsed aPopulateTimeElapsed = new PopulateTimeElapsed(timeElapsedFuture);
+				ecs.submit(aPopulateTimeElapsed);
 			}
 		});
 		sendButton2.setText("Send");
@@ -319,27 +348,7 @@ public class WSExplorer {
 		newItemToolItem_5.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				
-				FileDialog fd = new FileDialog(shell, SWT.SAVE);
-				fd.open();
-				
-				 if(fd.getFileName() != null && !fd.getFileName().equalsIgnoreCase("")){
-					 String filename = fd.getFilterPath() + "\\" + fd.getFileName();
-					 PrintWriter pw = null;
-					 
-					 
-					 try {
-						pw = SimpleIO.openFileForOutput(filename);
-					} catch (Exception e1) {
-						log(e1.getMessage());
-						return;
-					}
-					 
-					 pw.println(requestText.getText());
-					 SimpleIO.close(pw);
-					 
-					 log("Saved file '"+fd.getFileName()+"'");
-				 }
-				
+				saveToFile(requestText.getText());
 			}
 		});
 		newItemToolItem_5.setToolTipText("Save the text in the Request TextBox");
@@ -563,6 +572,9 @@ public class WSExplorer {
 		cancelButton.setText("Cancel");
 		
 		cancelButton.setEnabled(false);
+
+		
+		timeElapsedLabel = new Label(shell, SWT.NONE);
 		
 		final GroupLayout groupLayout = new GroupLayout(shell);
 		groupLayout.setHorizontalGroup(
@@ -585,7 +597,11 @@ public class WSExplorer {
 							.addPreferredGap(LayoutStyle.RELATED, 252, Short.MAX_VALUE)
 							.add(cancelButton, GroupLayout.PREFERRED_SIZE, 60, GroupLayout.PREFERRED_SIZE)
 							.addPreferredGap(LayoutStyle.RELATED)
-							.add(progressBar, GroupLayout.PREFERRED_SIZE, 187, GroupLayout.PREFERRED_SIZE)))
+							.add(groupLayout.createParallelGroup(GroupLayout.TRAILING, false)
+								.add(groupLayout.createSequentialGroup()
+									.add(10, 10, 10)
+									.add(timeElapsedLabel, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+								.add(progressBar, GroupLayout.PREFERRED_SIZE, 187, GroupLayout.PREFERRED_SIZE))))
 					.add(39, 39, 39))
 				.add(statusText, GroupLayout.DEFAULT_SIZE, 612, Short.MAX_VALUE)
 				.add(groupLayout.createSequentialGroup()
@@ -603,7 +619,12 @@ public class WSExplorer {
 					.add(40, 40, 40))
 		);
 		groupLayout.setVerticalGroup(
-			groupLayout.createParallelGroup(GroupLayout.LEADING)
+			groupLayout.createParallelGroup(GroupLayout.TRAILING)
+				.add(groupLayout.createSequentialGroup()
+					.add(progressBar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+					.add(3, 3, 3)
+					.add(timeElapsedLabel)
+					.add(25, 25, 25))
 				.add(groupLayout.createSequentialGroup()
 					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
 						.add(groupLayout.createSequentialGroup()
@@ -629,7 +650,6 @@ public class WSExplorer {
 							.add(wsExplorerLabel, GroupLayout.PREFERRED_SIZE, 28, GroupLayout.PREFERRED_SIZE)))
 					.add(7, 7, 7)
 					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-						.add(progressBar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
 						.add(groupLayout.createParallelGroup(GroupLayout.BASELINE)
 							.add(sendButton2)
 							.add(cancelButton)))
@@ -833,6 +853,58 @@ public class WSExplorer {
 	}
 	
 	/**
+	 * Increments the elapsed time counter until sending is done.
+	 * @author np3849
+	 *
+	 */
+	public class IncrementTimeElapsed implements Callable<String> {
+
+		AtomicBoolean isSending = null;
+		Calendar now = Calendar.getInstance();
+		
+		public IncrementTimeElapsed(AtomicBoolean isSending){
+			this.isSending = isSending;
+		}
+		
+		@Override
+		public String call() throws Exception {
+			String timeString = "";
+			final long sleepTime = 1000;
+			
+			// update while we are trying to send
+			while(isSending.get()){
+				timeString = setTimeElapsed(now);
+				Thread.sleep(sleepTime);
+			}
+            
+			return timeString;
+		}
+		
+	}
+	
+	/**
+	 * Populates the elapsed time in the status bar.
+	 * @author np3849
+	 *
+	 */
+	public class PopulateTimeElapsed implements Callable<String> {
+
+		Future<String> timeElapsedFuture = null;
+		
+		PopulateTimeElapsed(Future<String> timeElapsedFuture){
+			this.timeElapsedFuture = timeElapsedFuture;
+		}
+		
+		@Override
+		public String call() throws Exception {
+			log(" - " + timeElapsedFuture.get(), true);
+			return "";
+		}
+		
+	}
+	
+	
+	/**
 	 * Put text in the label at the bottom of the
 	 * screen.
 	 * @param t Text to display on the bottom label
@@ -851,6 +923,87 @@ public class WSExplorer {
                 public void run(){
                 	statusText.setText(t);
                 	statusTextException = e;
+                }});
+	}
+	
+	public void log(final String t, final boolean append){
+        shell.getDisplay().asyncExec(
+                new Runnable() {
+                public void run(){
+                	if(append){
+                		statusText.setText(statusText.getText() + " " + t);
+                	} else {
+                		statusText.setText(t);
+                	}
+                }});
+	}
+	
+	/**
+	 * Sets the timeElapsedLabel with time since 'started'
+	 * @param started
+	 */
+	public String setTimeElapsed(Calendar started){
+		Calendar c = Calendar.getInstance();
+		
+		long start = started.getTimeInMillis();
+		long now = c.getTimeInMillis();
+		
+		long elapsedMillis = now - start;
+		
+		int elapsedSeconds = (int)elapsedMillis / 1000;
+		int elapsedMins = (int)elapsedMillis / (60*1000);
+		int elapsedHours = (int)elapsedMillis / (60*60*1000);
+		
+		if(elapsedMins > 0) { elapsedSeconds -= (elapsedMins * 60); } // make it roll
+		if(elapsedHours > 0) { elapsedMins -= (elapsedHours * 60); } // make it roll
+		
+		// format our String
+		StringBuffer sb = new StringBuffer();
+		sb.append("Elapsed Time: ");
+		
+		String timeType = null;
+		
+		if(elapsedSeconds == 1){
+			timeType = " Second";
+		} else {
+			timeType = " Seconds";
+		}
+		
+		if(elapsedHours > 0){
+			sb.append(elapsedHours);
+			sb.append(".");
+			
+			if(elapsedHours == 1 && elapsedMins == 1 && elapsedSeconds == 1){
+				timeType = " Hour";
+			} else {
+				timeType = " Hours";
+			}
+		}
+		
+		if(elapsedMins > 0){
+			sb.append(elapsedMins);
+			sb.append(".");
+			
+			if(elapsedMins == 1 && elapsedSeconds == 1){
+				timeType = " Minute";
+			} else {
+				timeType = " Minutes";
+			}
+		}
+		
+		sb.append(elapsedSeconds);
+		sb.append(timeType);
+		
+		setTimeElapsedLabel(sb.toString());
+		
+		return sb.toString();
+	}
+	
+	private void setTimeElapsedLabel(final String time){
+        shell.getDisplay().asyncExec(
+                new Runnable() {
+                public void run(){
+                	timeElapsedLabel.setText(time);
                 }});
 	}
 	
@@ -1015,6 +1168,33 @@ public class WSExplorer {
 
 		return o;
 	}
+	
+	
+	public void saveToFile(String text){
+	
+		FileDialog fd = new FileDialog(shell, SWT.SAVE);
+		fd.open();
+		
+		 if(fd.getFileName() != null && !fd.getFileName().equalsIgnoreCase("")){
+			 String filename = fd.getFilterPath() + "\\" + fd.getFileName();
+			 PrintWriter pw = null;
+			 
+			 
+			 try {
+				pw = SimpleIO.openFileForOutput(filename);
+			} catch (Exception e1) {
+				log(e1.getMessage());
+				return;
+			}
+			 
+			 pw.println(text);
+			 SimpleIO.close(pw);
+			 
+			 log("Saved file '"+fd.getFileName()+"'");
+		 }
+		
+	}
+	
 	
 	/**
 	 * Cancel the current sending operation.
