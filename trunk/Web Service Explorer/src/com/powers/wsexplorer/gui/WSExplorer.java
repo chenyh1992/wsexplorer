@@ -20,6 +20,8 @@ package com.powers.wsexplorer.gui;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -29,8 +31,11 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
@@ -44,18 +49,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.xml.soap.SOAPConnection;
 
+import org.apache.commons.lang.StringUtils;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.custom.StyledText;
 import org.eclipse.swt.events.DisposeEvent;
 import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
-import org.eclipse.swt.layout.grouplayout.GroupLayout;
-import org.eclipse.swt.layout.grouplayout.LayoutStyle;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Combo;
+import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
@@ -63,6 +74,7 @@ import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.MessageBox;
 import org.eclipse.swt.widgets.ProgressBar;
+import org.eclipse.swt.widgets.Scrollable;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.swt.widgets.ToolBar;
@@ -74,11 +86,12 @@ import com.swtdesigner.SWTResourceManager;
 
 public class WSExplorer {
 
-	final static String VERSION = "0.5";
+	final static String VERSION = "0.6";
 	final int CONTROL_A = 'A' - 0x40; // the "control A" character
 	final int CONTROL_S = 'S' - 0x40; // the "control S" character
 	final int CONTROL_F = 'F' - 0x40; // the "control S" character
 	
+	private final static String SAVED_STATE_FILE = "saved_state.txt";
 	private final static String ENDPOINTS_FILE = "endpoints.txt";
 	private final static String SOAP_TEMPLATE_FILE = "SOAPTemplate.xml";
 	private final static String GPLV3_FILE = "gpl-3.0.txt";
@@ -87,6 +100,8 @@ public class WSExplorer {
 	final static String[] TIMEOUT_CHOICES = {SECONDS, MILLISECONDS};
 	private transient boolean CancelWasPressed = false;
 	private static SOAPConnection CONNECTION = null;
+	private static final Image CHECK_IMAGE = SWTResourceManager.getImage(WSExplorer.class, "/check.png");
+	private static final Image X_IMAGE = SWTResourceManager.getImage(WSExplorer.class, "/x.png");
 	
 	private final Shell shell = new Shell();
 	
@@ -97,16 +112,18 @@ public class WSExplorer {
 	private AtomicBoolean isSending = new AtomicBoolean(false);
 	private AtomicBoolean shouldStopProgressBar = new AtomicBoolean(false);
 	private List<String> comboItems = getEndpointHistory();
+	private Map<String, Scrollable> itemsToSaveState = new HashMap<String, Scrollable>();
 	
 	private Combo endpointCombo;
-	private Text responseText;
-	private Text requestText;
+	private StyledText responseText;
+	private StyledText requestText;
 	private ProgressBar progressBar;
 	private Label statusText;
 	private Exception statusTextException;
 	private Options options = null;
 	private Button cancelButton = null;
 	private Label timeElapsedLabel;
+	private Label statusLabel;
 	
 	/**
 	 * Launch the application
@@ -128,6 +145,7 @@ public class WSExplorer {
 		final Display display = Display.getDefault();
 		
 		shell.setText("WS Explorer");
+		shell.setLayout(new FormLayout());
 		shell.setImage(SWTResourceManager.getImage(WSExplorer.class, "/Earth-Scan-16x16.png"));
 		shell.setMinimumSize(new Point(620, 665));
 		shell.addDisposeListener(new DisposeListener() {
@@ -135,54 +153,43 @@ public class WSExplorer {
 				tpe.shutdownNow();
 				
 				saveEndpointsToFile();
+				saveStateToFile(itemsToSaveState, SAVED_STATE_FILE);
+				
+				// delete any temporary files used to display in 'Browser View'
 				deleteTemporaryFiles();
 				
 			}
 		});
 		//
 
-		shell.open();
 		
-		requestText = new Text(shell, SWT.V_SCROLL | SWT.MULTI | SWT.H_SCROLL | SWT.BORDER);
-		requestText.addKeyListener(new KeyAdapter() {
-			public void keyPressed(final KeyEvent e) {
-		          if (e.character == CONTROL_A) {
-		        	  requestText.selectAll();
-		           } else if(e.character == CONTROL_S){
-		        	   saveToFile(requestText.getText());
-		           }
-			}
-		});
-		requestText.setFont(SWTResourceManager.getFont("Courier New", 8, SWT.NONE));
-
+		
 		Label requestLabel;
-		requestLabel = new Label(shell, SWT.NONE);
-		requestLabel.setText("Request");
-
-		responseText = new Text(shell, SWT.V_SCROLL | SWT.MULTI | SWT.H_SCROLL | SWT.BORDER);
-		responseText.addKeyListener(new KeyAdapter() {
-			public void keyPressed(final KeyEvent e) {
-	          if (e.character == CONTROL_A) {
-	        	  responseText.selectAll();
-	           } else if(e.character == CONTROL_S){
-	        	   saveToFile(responseText.getText());
-	           }
-			}
-		});
-		responseText.setFont(SWTResourceManager.getFont("Courier New", 8, SWT.NONE));
-
+		
+		
 		Label responseLabel;
-		responseLabel = new Label(shell, SWT.NONE);
-		responseLabel.setText("Response");
 
 		Label wsExplorerLabel;
 		wsExplorerLabel = new Label(shell, SWT.NONE);
+		wsExplorerLabel.setImage(SWTResourceManager.getImage(WSExplorer.class, "/logo.png"));
+		final FormData fd_wsExplorerLabel = new FormData();
+		fd_wsExplorerLabel.bottom = new FormAttachment(0, 66);
+		fd_wsExplorerLabel.top = new FormAttachment(0, 38);
+		fd_wsExplorerLabel.right = new FormAttachment(0, 218);
+		fd_wsExplorerLabel.left = new FormAttachment(0, 6);
+		wsExplorerLabel.setLayoutData(fd_wsExplorerLabel);
 		wsExplorerLabel.setToolTipText("Web Service Explorer");
 		wsExplorerLabel.setFont(SWTResourceManager.getFont("", 14, SWT.NONE));
-		wsExplorerLabel.setText("WS Explorer");
+		wsExplorerLabel.setText("Web Service Explorer");
 
 		endpointCombo = new Combo(shell, SWT.NONE);
-		endpointCombo.setToolTipText("Enter Endpoint URL");
+		final FormData fd_endpointCombo = new FormData();
+		fd_endpointCombo.right = new FormAttachment(100, -140);
+		fd_endpointCombo.bottom = new FormAttachment(0, 117);
+		fd_endpointCombo.top = new FormAttachment(0, 96);
+		fd_endpointCombo.left = new FormAttachment(0, 9);
+		endpointCombo.setLayoutData(fd_endpointCombo);
+		endpointCombo.setToolTipText("Enter Endpoint URL. Right-click to clear a single or all items from the list");
 		// set the items in the combo from a file
 		if(comboItems.size() > 0){
 			String[] s = (String[]) comboItems.toArray(new String[comboItems.size()]);
@@ -195,15 +202,33 @@ public class WSExplorer {
 		
 		Label endpointLabel;
 		endpointLabel = new Label(shell, SWT.NONE);
+		final FormData fd_endpointLabel = new FormData();
+		fd_endpointLabel.bottom = new FormAttachment(0, 89);
+		fd_endpointLabel.top = new FormAttachment(0, 76);
+		fd_endpointLabel.right = new FormAttachment(0, 51);
+		fd_endpointLabel.left = new FormAttachment(0, 9);
+		endpointLabel.setLayoutData(fd_endpointLabel);
 		endpointLabel.setText("Endpoint");
 
 
 
 		progressBar = new ProgressBar(shell, SWT.NONE);
+		final FormData fd_progressBar = new FormData();
+		fd_progressBar.bottom = new FormAttachment(100, -22);
+		fd_progressBar.top = new FormAttachment(100, -39);
+		fd_progressBar.left = new FormAttachment(100, -189);
+		fd_progressBar.right = new FormAttachment(100, -2);
+		progressBar.setLayoutData(fd_progressBar);
 		progressBar.setToolTipText("Progress Of Current Action");
 
 		Button sendButton2;
 		sendButton2 = new Button(shell, SWT.NONE);
+		final FormData fd_sendButton2 = new FormData();
+		fd_sendButton2.bottom = new FormAttachment(100, -30);
+		fd_sendButton2.top = new FormAttachment(100, -53);
+		fd_sendButton2.right = new FormAttachment(0, 69);
+		fd_sendButton2.left = new FormAttachment(0, 9);
+		sendButton2.setLayoutData(fd_sendButton2);
 		sendButton2.setToolTipText("Send The Message");
 		sendButton2.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
@@ -236,6 +261,8 @@ public class WSExplorer {
 
 				// clear response text
 				responseText.setText("");
+				// clear status image
+				setStatusImage(null);
 				
 				// set status bar...
 				log("Sending...");
@@ -303,7 +330,23 @@ public class WSExplorer {
 		
 		newItemMenuItem_1.setText("Exit");
 		
+		// ==== EDIT MENU
+		final MenuItem editMenu = new MenuItem(menu, SWT.CASCADE);
+		editMenu.setText("Edit");
 
+		final Menu editSubMenu = new Menu(editMenu);
+		editMenu.setMenu(editSubMenu);
+		
+		final MenuItem findMenuItem = new MenuItem(editSubMenu, SWT.NONE);
+		findMenuItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				FindDialog findDialog = new FindDialog(shell, responseText);
+				findDialog.open();
+			}
+		});
+		findMenuItem.setText("Find");
+		
+		
 
 		final MenuItem helpMenu = new MenuItem(menu, SWT.CASCADE);
 		helpMenu.setText("Help");
@@ -340,11 +383,36 @@ public class WSExplorer {
 		});
 		viewLicenseMenuItem.setText("View License");
 
+		final MenuItem viewStackTraceMenuItem = new MenuItem(menu_5, SWT.NONE);
+		viewStackTraceMenuItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+		
+		 		if(statusTextException != null){
+					TextDialog td = new TextDialog(shell);
+					td.setTitle("Stack Trace");
+					td.setText(getStrackTraceAsString(statusTextException));
+					td.open();
+				}
+				 
+			}
+		});
+		viewStackTraceMenuItem.setText("View Stacktrace");
+		
+		
+		
+
 		ToolBar toolBar;
 		toolBar = new ToolBar(shell, SWT.NONE);
+		final FormData fd_toolBar = new FormData();
+		fd_toolBar.right = new FormAttachment(0, 323);
+		fd_toolBar.bottom = new FormAttachment(0, 39);
+		fd_toolBar.top = new FormAttachment(0, 0);
+		fd_toolBar.left = new FormAttachment(0, 0);
+		toolBar.setLayoutData(fd_toolBar);
 
 		final ToolItem newItemToolItem_5 = new ToolItem(toolBar, SWT.PUSH);
 		newItemToolItem_5.setText("Save");
+		newItemToolItem_5.setImage(SWTResourceManager.getImage(WSExplorer.class, "/Save-icon.png"));
 		newItemToolItem_5.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				
@@ -355,6 +423,7 @@ public class WSExplorer {
 
 
 		final ToolItem newItemToolItem_6 = new ToolItem(toolBar, SWT.PUSH);
+		newItemToolItem_6.setImage(SWTResourceManager.getImage(WSExplorer.class, "/Open-icon.png"));
 		newItemToolItem_6.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				
@@ -371,12 +440,14 @@ public class WSExplorer {
 			}
 		});
 		newItemToolItem_6.setToolTipText("Load text into the Request TextBox");
-		newItemToolItem_6.setText("Load");
+		newItemToolItem_6.setText("Open");
 
 		final ToolItem newItemToolItem_4 = new ToolItem(toolBar, SWT.SEPARATOR);
+		newItemToolItem_4.setText(" ");
 		newItemToolItem_4.setWidth(32);
 
 		final ToolItem newItemToolItem = new ToolItem(toolBar, SWT.PUSH);
+		newItemToolItem.setImage(SWTResourceManager.getImage(WSExplorer.class, "/Delete-icon.png"));
 		newItemToolItem.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				requestText.setText("");
@@ -384,29 +455,37 @@ public class WSExplorer {
 			}
 		});
 		newItemToolItem.setToolTipText("Clear All TextBoxes");
-		newItemToolItem.setText("Clear All");
+		newItemToolItem.setText("All");
 
 		final ToolItem newItemToolItem_1 = new ToolItem(toolBar, SWT.PUSH);
+		newItemToolItem_1.setImage(SWTResourceManager.getImage(WSExplorer.class, "/Delete-icon.png"));
 		newItemToolItem_1.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				requestText.setText("");
 			}
 		});
 		newItemToolItem_1.setToolTipText("Clear Request TextBox");
-		newItemToolItem_1.setText("Clear Request");
+		newItemToolItem_1.setText("Request");
 
 		final ToolItem newItemToolItem_2 = new ToolItem(toolBar, SWT.PUSH);
+		newItemToolItem_2.setImage(SWTResourceManager.getImage(WSExplorer.class, "/Delete-icon.png"));
 		newItemToolItem_2.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				responseText.setText("");
 			}
 		});
 		newItemToolItem_2.setToolTipText("Clear Response TextBox");
-		newItemToolItem_2.setText("Clear Response");
+		newItemToolItem_2.setText("Response");
 
 		
 		statusText = new Label(shell, SWT.BORDER);
-		statusText.setToolTipText("Status Messages Appear Here");
+		final FormData fd_statusText = new FormData();
+		fd_statusText.bottom = new FormAttachment(100, 0);
+		fd_statusText.top = new FormAttachment(100, -18);
+		fd_statusText.left = new FormAttachment(0, 0);
+		fd_statusText.right = new FormAttachment(100, 0);
+		statusText.setLayoutData(fd_statusText);
+		statusText.setToolTipText("Status Messages Appear Here. Right-Click for error details (if an error exists).");
 		statusText.setBackground(SWTResourceManager.getColor(192, 192, 192));
 		
 		
@@ -437,48 +516,121 @@ public class WSExplorer {
 			}
 		});
 		clearStatusText_menuItem.setText("Clear Status");
+		
+		
+		
+		
+		final Menu menu_2 = new Menu(endpointCombo);
+		endpointCombo.setMenu(menu_2);
 
-		final Menu responsePopUpMenu = new Menu(responseText);
-		responseText.setMenu(responsePopUpMenu);
-
-		final MenuItem openInBrowserView_response_popUp = new MenuItem(responsePopUpMenu, SWT.NONE);
-		openInBrowserView_response_popUp.addSelectionListener(new SelectionAdapter() {
+		final MenuItem newItemMenuItem = new MenuItem(menu_2, SWT.NONE);
+		newItemMenuItem.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
-				
-				openInBrowserView(responseText.getText());
+				String s = endpointCombo.getText();
+				if(s != null && !s.equals("")){
+					comboItems.remove(s);
+					
+					updateEndpointCombo("");
+				}
 				
 			}
 		});
-		openInBrowserView_response_popUp.setText("Open In Browser View");
+		
+		newItemMenuItem.setText("Clear Current Item");
+
+		final MenuItem newItemMenuItem_2 = new MenuItem(menu_2, SWT.NONE);
+		newItemMenuItem_2.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				
+				 MessageBox mb = new MessageBox(shell, SWT.YES | SWT.NO);
+				 mb.setText("Clear All Items In Combo Box?");
+				 mb.setMessage("Are you sure you want to clear the entire combo box?");
+				 if(mb.open() == SWT.YES){
+						comboItems.clear();
+						updateEndpointCombo("");
+						log("Cleared combo box");
+				 }
+
+			}
+		});
+		newItemMenuItem_2.setText("Clear All Items");
+
+		cancelButton = new Button(shell, SWT.NONE);
+		final FormData fd_cancelButton = new FormData();
+		fd_cancelButton.left = new FormAttachment(100, -252);
+		fd_cancelButton.top = new FormAttachment(100, -43);
+		fd_cancelButton.bottom = new FormAttachment(100, -20);
+		fd_cancelButton.right = new FormAttachment(progressBar, -3, SWT.LEFT);
+		cancelButton.setLayoutData(fd_cancelButton);
+		cancelButton.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				CancelWasPressed = true;
+				log("Cancelling current operation...");
+			}
+		});
+		cancelButton.setToolTipText("Cancel the current operation.");
+		cancelButton.setText("Cancel");
+		
+		cancelButton.setEnabled(false);
 
 		
-		// pretty print menu item for response text box
-		final MenuItem prettyPrint_response_popUp = new MenuItem(responsePopUpMenu, SWT.NONE);
-		prettyPrint_response_popUp.addSelectionListener(new SelectionAdapter() {
-			public void widgetSelected(final SelectionEvent e) {
-				String text = responseText.getText();
-				if(text == null || ("").equalsIgnoreCase(text)){
-					log("Did not pretty print...there is nothing to format!");
-					return;
-				}
-				
-				String prettyText = null;
-				try {
-					prettyText = WSUtil.prettyPrint(text);
-					responseText.setText(prettyText);
-					log("Text was pretty printed");
-				}catch (Exception ex){
-					log("Unable to pretty print due to malformed XML");
-				}
-				
+		timeElapsedLabel = new Label(shell, SWT.NONE);
+		final FormData fd_timeElapsedLabel = new FormData();
+		fd_timeElapsedLabel.top = new FormAttachment(100, -54);
+		fd_timeElapsedLabel.bottom = new FormAttachment(progressBar, -2, SWT.DEFAULT);
+		fd_timeElapsedLabel.left = new FormAttachment(100, -182);
+		fd_timeElapsedLabel.right = new FormAttachment(100, -2);
+		timeElapsedLabel.setLayoutData(fd_timeElapsedLabel);
+
+		final SashForm sashForm = new SashForm(shell, SWT.VERTICAL);
+		sashForm.setBackground(Display.getCurrent().getSystemColor(SWT.COLOR_WHITE));
+		final FormData fd_sashForm = new FormData();
+		fd_sashForm.bottom = new FormAttachment(100, -59);
+		fd_sashForm.right = new FormAttachment(100, -2);
+		fd_sashForm.left = new FormAttachment(0, 7);
+		fd_sashForm.top = new FormAttachment(0, 122);
+		sashForm.setLayoutData(fd_sashForm);
+
+		final Composite composite = new Composite(sashForm, SWT.NONE);
+		composite.setLayout(new FormLayout());
+		requestLabel = new Label(composite, SWT.NONE);
+		final FormData fd_requestLabel = new FormData();
+		fd_requestLabel.bottom = new FormAttachment(0, 16);
+		fd_requestLabel.top = new FormAttachment(0, 3);
+		fd_requestLabel.right = new FormAttachment(0, 43);
+		fd_requestLabel.left = new FormAttachment(0, 3);
+		requestLabel.setLayoutData(fd_requestLabel);
+		requestLabel.setText("Request");
+		
+		requestText = new StyledText(composite, SWT.V_SCROLL | SWT.MULTI | SWT.H_SCROLL | SWT.BORDER);
+		final FormData fd_requestText = new FormData();
+		fd_requestText.top = new FormAttachment(0, 19);
+		fd_requestText.bottom = new FormAttachment(100, -4);
+		fd_requestText.left = new FormAttachment(0, 3);
+		fd_requestText.right = new FormAttachment(100, -2);
+		requestText.setLayoutData(fd_requestText);
+		requestText.addKeyListener(new KeyAdapter() {
+			public void keyPressed(final KeyEvent e) {
+		          if (e.character == CONTROL_A) {
+		        	  requestText.selectAll();
+		           } else if(e.character == CONTROL_S){
+		        	   saveToFile(requestText.getText());
+		           } else if(e.character == CONTROL_F){
+		        	   FindDialog findDialog = new FindDialog(shell,requestText);
+		        	   findDialog.open();
+		           }
 			}
 		});
-		prettyPrint_response_popUp.setText("Pretty Print");
+		requestText.setFont(SWTResourceManager.getFont("Courier New", 10, SWT.NONE));
+		requestText.addLineStyleListener(new HTMLLineStyler());
 		
 		
 		final Menu requestPopUpMenu = new Menu(requestText);
 		requestText.setMenu(requestPopUpMenu);
 
+		addTextOperationsToPopupMenu(requestText, requestPopUpMenu);
+		addSeperator(requestPopUpMenu);
+		
 		final MenuItem openInBrowserView_request_popUp = new MenuItem(requestPopUpMenu, SWT.NONE);
 		openInBrowserView_request_popUp.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e){
@@ -522,141 +674,99 @@ public class WSExplorer {
 			}
 		});
 		prettyPrint_request_popUp.setText("Pretty Print");
-		
-		
-		
-		
-		final Menu menu_2 = new Menu(endpointCombo);
-		endpointCombo.setMenu(menu_2);
 
-		final MenuItem newItemMenuItem = new MenuItem(menu_2, SWT.NONE);
-		newItemMenuItem.addSelectionListener(new SelectionAdapter() {
+		final Composite composite_1 = new Composite(sashForm, SWT.NONE);
+		composite_1.setLayout(new FormLayout());
+		responseLabel = new Label(composite_1, SWT.NONE);
+		final FormData fd_responseLabel = new FormData();
+		fd_responseLabel.bottom = new FormAttachment(0, 16);
+		fd_responseLabel.top = new FormAttachment(0, 3);
+		fd_responseLabel.right = new FormAttachment(0, 50);
+		fd_responseLabel.left = new FormAttachment(0, 3);
+		responseLabel.setLayoutData(fd_responseLabel);
+		responseLabel.setText("Response");
+
+		responseText = new StyledText(composite_1, SWT.V_SCROLL | SWT.MULTI | SWT.H_SCROLL | SWT.BORDER);
+		final FormData fd_responseText = new FormData();
+		fd_responseText.top = new FormAttachment(0, 19);
+		fd_responseText.right = new FormAttachment(100, 2);
+		fd_responseText.left = new FormAttachment(0, 3);
+		fd_responseText.bottom = new FormAttachment(100, -7);
+		responseText.setLayoutData(fd_responseText);
+		responseText.addKeyListener(new KeyAdapter() {
+			public void keyPressed(final KeyEvent e) {
+	          if (e.character == CONTROL_A) {
+	        	  responseText.selectAll();
+	           } else if(e.character == CONTROL_S){
+	        	   saveToFile(responseText.getText());
+	           } else if(e.character == CONTROL_F){
+	        	   FindDialog findDialog = new FindDialog(shell,responseText);
+	        	   findDialog.open();
+	           }
+			}
+		});
+		responseText.setFont(SWTResourceManager.getFont("Courier New", 10, SWT.NONE));
+		responseText.addLineStyleListener(new HTMLLineStyler());
+
+		final Menu responsePopUpMenu = new Menu(responseText);
+		responseText.setMenu(responsePopUpMenu);
+
+		addTextOperationsToPopupMenu(responseText, responsePopUpMenu);
+		addSeperator(responsePopUpMenu);
+		
+		
+		final MenuItem openInBrowserView_response_popUp = new MenuItem(responsePopUpMenu, SWT.NONE);
+		openInBrowserView_response_popUp.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
-				String s = endpointCombo.getText();
-				if(s != null && !s.equals("")){
-					comboItems.remove(s);
-					
-					updateEndpointCombo("");
+				
+				openInBrowserView(responseText.getText());
+				
+			}
+		});
+		openInBrowserView_response_popUp.setText("Open In Browser View");
+
+		
+		// pretty print menu item for response text box
+		final MenuItem prettyPrint_response_popUp = new MenuItem(responsePopUpMenu, SWT.NONE);
+		prettyPrint_response_popUp.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				String text = responseText.getText();
+				if(text == null || ("").equalsIgnoreCase(text)){
+					log("Did not pretty print...there is nothing to format!");
+					return;
+				}
+				
+				String prettyText = null;
+				try {
+					prettyText = WSUtil.prettyPrint(text);
+					responseText.setText(prettyText);
+					log("Text was pretty printed");
+				}catch (Exception ex){
+					log("Unable to pretty print due to malformed XML");
 				}
 				
 			}
 		});
-		
-		newItemMenuItem.setText("Clear Current Item");
+		prettyPrint_response_popUp.setText("Pretty Print");
 
-		final MenuItem newItemMenuItem_2 = new MenuItem(menu_2, SWT.NONE);
-		newItemMenuItem_2.addSelectionListener(new SelectionAdapter() {
-			public void widgetSelected(final SelectionEvent e) {
-				
-				 MessageBox mb = new MessageBox(shell, SWT.YES | SWT.NO);
-				 mb.setText("Clear All Items In Combo Box?");
-				 mb.setMessage("Are you sure you want to clear the entire combo box?");
-				 if(mb.open() == SWT.YES){
-						comboItems.clear();
-						updateEndpointCombo("");
-						log("Cleared combo box");
-				 }
+		final Label label = new Label(shell, SWT.NONE);
+		label.setToolTipText("WS Explorer");
+		label.setImage(SWTResourceManager.getImage(WSExplorer.class, "/Earth-Scan-icon-128.png"));
+		final FormData fd_label = new FormData();
+		fd_label.bottom = new FormAttachment(0, 131);
+		fd_label.top = new FormAttachment(0, 3);
+		fd_label.left = new FormAttachment(100, -140);
+		fd_label.right = new FormAttachment(100, -12);
+		label.setLayoutData(fd_label);
 
-			}
-		});
-		newItemMenuItem_2.setText("Clear All Items");
-
-		cancelButton = new Button(shell, SWT.NONE);
-		cancelButton.addSelectionListener(new SelectionAdapter() {
-			public void widgetSelected(final SelectionEvent e) {
-				CancelWasPressed = true;
-				log("Cancelling current operation...");
-			}
-		});
-		cancelButton.setToolTipText("Cancel the current operation.");
-		cancelButton.setText("Cancel");
-		
-		cancelButton.setEnabled(false);
-
-		
-		timeElapsedLabel = new Label(shell, SWT.NONE);
-		
-		final GroupLayout groupLayout = new GroupLayout(shell);
-		groupLayout.setHorizontalGroup(
-			groupLayout.createParallelGroup(GroupLayout.LEADING)
-				.add(toolBar, GroupLayout.DEFAULT_SIZE, 612, Short.MAX_VALUE)
-				.add(groupLayout.createSequentialGroup()
-					.addContainerGap()
-					.add(wsExplorerLabel, GroupLayout.PREFERRED_SIZE, 143, GroupLayout.PREFERRED_SIZE)
-					.addContainerGap(460, Short.MAX_VALUE))
-				.add(groupLayout.createSequentialGroup()
-					.addContainerGap()
-					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-						.add(responseText, GroupLayout.DEFAULT_SIZE, 564, Short.MAX_VALUE)
-						.add(groupLayout.createSequentialGroup()
-							.add(1, 1, 1)
-							.add(responseLabel, GroupLayout.PREFERRED_SIZE, 69, GroupLayout.PREFERRED_SIZE)
-							.addPreferredGap(LayoutStyle.RELATED, 494, Short.MAX_VALUE))
-						.add(groupLayout.createSequentialGroup()
-							.add(sendButton2, GroupLayout.PREFERRED_SIZE, 60, GroupLayout.PREFERRED_SIZE)
-							.addPreferredGap(LayoutStyle.RELATED, 252, Short.MAX_VALUE)
-							.add(cancelButton, GroupLayout.PREFERRED_SIZE, 60, GroupLayout.PREFERRED_SIZE)
-							.addPreferredGap(LayoutStyle.RELATED)
-							.add(groupLayout.createParallelGroup(GroupLayout.TRAILING, false)
-								.add(groupLayout.createSequentialGroup()
-									.add(10, 10, 10)
-									.add(timeElapsedLabel, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-								.add(progressBar, GroupLayout.PREFERRED_SIZE, 187, GroupLayout.PREFERRED_SIZE))))
-					.add(39, 39, 39))
-				.add(statusText, GroupLayout.DEFAULT_SIZE, 612, Short.MAX_VALUE)
-				.add(groupLayout.createSequentialGroup()
-					.addContainerGap()
-					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-						.add(requestText, GroupLayout.DEFAULT_SIZE, 563, Short.MAX_VALUE)
-						.add(groupLayout.createSequentialGroup()
-							.add(1, 1, 1)
-							.add(requestLabel, GroupLayout.PREFERRED_SIZE, 69, GroupLayout.PREFERRED_SIZE))
-						.add(groupLayout.createSequentialGroup()
-							.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-								.add(endpointLabel)
-								.add(endpointCombo, GroupLayout.DEFAULT_SIZE, 464, Short.MAX_VALUE))
-							.add(99, 99, 99)))
-					.add(40, 40, 40))
-		);
-		groupLayout.setVerticalGroup(
-			groupLayout.createParallelGroup(GroupLayout.TRAILING)
-				.add(groupLayout.createSequentialGroup()
-					.add(progressBar, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-					.add(3, 3, 3)
-					.add(timeElapsedLabel)
-					.add(25, 25, 25))
-				.add(groupLayout.createSequentialGroup()
-					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-						.add(groupLayout.createSequentialGroup()
-							.add(toolBar, GroupLayout.PREFERRED_SIZE, 25, GroupLayout.PREFERRED_SIZE)
-							.add(51, 51, 51)
-							.add(endpointLabel)
-							.addPreferredGap(LayoutStyle.RELATED)
-							.add(endpointCombo, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-							.add(22, 22, 22)
-							.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-								.add(requestLabel, GroupLayout.PREFERRED_SIZE, 17, GroupLayout.PREFERRED_SIZE)
-								.add(groupLayout.createSequentialGroup()
-									.add(16, 16, 16)
-									.add(requestText, GroupLayout.DEFAULT_SIZE, 189, Short.MAX_VALUE)))
-							.add(18, 18, 18)
-							.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-								.add(responseLabel, GroupLayout.PREFERRED_SIZE, 17, GroupLayout.PREFERRED_SIZE)
-								.add(groupLayout.createSequentialGroup()
-									.add(16, 16, 16)
-									.add(responseText, GroupLayout.DEFAULT_SIZE, 168, Short.MAX_VALUE))))
-						.add(groupLayout.createSequentialGroup()
-							.add(32, 32, 32)
-							.add(wsExplorerLabel, GroupLayout.PREFERRED_SIZE, 28, GroupLayout.PREFERRED_SIZE)))
-					.add(7, 7, 7)
-					.add(groupLayout.createParallelGroup(GroupLayout.LEADING)
-						.add(groupLayout.createParallelGroup(GroupLayout.BASELINE)
-							.add(sendButton2)
-							.add(cancelButton)))
-					.add(17, 17, 17)
-					.add(statusText, GroupLayout.PREFERRED_SIZE, 18, GroupLayout.PREFERRED_SIZE))
-		);
-		shell.setLayout(groupLayout);
+		statusLabel = new Label(shell, SWT.NONE);
+		final FormData fd_label_1 = new FormData();
+		fd_label_1.bottom = new FormAttachment(100, -26);
+		fd_label_1.right = new FormAttachment(0, 108);
+		fd_label_1.top = new FormAttachment(100, -57);
+		fd_label_1.left = new FormAttachment(sendButton2, 3, SWT.DEFAULT);
+		statusLabel.setLayoutData(fd_label_1);
+		sashForm.setWeights(new int[] {1, 1 });
 		shell.layout();
 		
 		
@@ -676,20 +786,157 @@ public class WSExplorer {
 			}
 		}
 		
+		//shell.pack();
 		// ===================================================
 		// done with dealing with fully populated widgets
 		// ===================================================
+		
+		putItemsToSaveState();
+		loadStateFromFile(SAVED_STATE_FILE, itemsToSaveState);
+		
+		shell.open();
 		
 		while (!shell.isDisposed()) {
 			if (!display.readAndDispatch())
 				display.sleep();
 		}
-		shell.pack();
-		
-		
 		
 	}
 
+	public void setStatusImage(final Boolean status){
+		shell.getDisplay().asyncExec(
+            new Runnable() {
+            public void run(){
+            	
+            	if(status == null){
+            		statusLabel.setImage(null);
+            	} else if(status){
+        			statusLabel.setImage(CHECK_IMAGE);
+        		} else {
+        			statusLabel.setImage(X_IMAGE);
+        		}
+            }});
+	}
+	
+	private void saveStateToFile(Map<String, Scrollable> itemsToSave, String filename){
+		if(itemsToSave == null || StringUtils.isBlank(filename)) { return; }
+		
+		Properties props = new Properties();
+		
+		Scrollable s = null;
+		Text text = null;
+		StyledText styledText = null;
+		Combo combo = null;
+		String value = null;
+		
+		Set<String> keys = itemsToSave.keySet();
+		
+		
+		for(String str : keys){
+			if(StringUtils.isBlank(str)){ continue; }
+			
+			s = itemsToSave.get(str);
+			
+			if(s instanceof Text){
+				text = (Text)s;
+			} else if(s instanceof StyledText){
+				styledText = (StyledText)s;
+			} else if(s instanceof Combo){
+				combo = (Combo)s;
+			} 
+			
+			// get the text out of the widget
+			if(text != null){
+				value = text.getText();
+			} else if(styledText != null){
+				value = styledText.getText();
+			} else if(combo != null){
+				value = combo.getText();
+			} 
+			
+			if(StringUtils.isNotBlank(value)){
+				props.put(str, value);
+			}
+			
+			text = null;
+			combo = null;
+			styledText = null;
+		}
+		
+		
+		FileOutputStream fos = null;
+		try {
+			fos = new FileOutputStream(new File(filename));
+			props.store(fos, "State Saved");
+		} catch (Exception e) {
+			log("Unable to save state",e);
+		}
+	}
+	
+	
+	private void loadStateFromFile(String filename, Map<String, Scrollable> itemsToSave){
+		Properties props = new Properties();
+		
+		File file = new File(filename);
+		if(!file.exists()) {
+			log("No Saved State file (this is fine the first time)"); 
+			return;
+		}
+		
+		try {
+			props.load(new FileInputStream(file));
+		} catch (Exception e) {
+			log("Unable to load state from the file " + filename, e);
+			return;
+		}
+		
+		Scrollable s = null;
+		String value = null;
+		Text text = null;
+		StyledText styledText = null;
+		Combo combo = null;
+		
+		Set<String> keys = itemsToSave.keySet();
+		for(String key : keys){
+			value = props.getProperty(key);
+			s = itemsToSave.get(key);
+			
+			// if null or empty, just keep going to the next one
+			if(StringUtils.isBlank(value) || s == null){
+				continue;
+			}
+			
+			// find the right widget
+			if(s instanceof Text){
+				text = (Text)s;
+			} else if(s instanceof StyledText){
+				styledText = (StyledText)s;
+			} else if(s instanceof Combo){
+				combo = (Combo)s;
+			}
+			
+			// populate the right widget
+			if(text != null){
+				text.setText(value);
+			} else if(styledText != null){
+				styledText.setText(value);
+			} else if(combo != null){
+				combo.setText(value);
+			}
+			
+			text = null;
+			combo = null;
+			styledText = null;
+			
+		}
+	}
+	
+	private void putItemsToSaveState(){
+		itemsToSaveState.put("endpointCombo", endpointCombo);
+		itemsToSaveState.put("requestText", requestText);
+		itemsToSaveState.put("responseText", responseText);
+	}
+	
 	/**
 	 * Handles the execution of the call. It's design to be used in a <tt>CompletionService</tt>.
 	 *
@@ -720,13 +967,13 @@ public class WSExplorer {
 	 */
 	public class PopulateResponse implements Callable<String> {
 
-		Shell shell = null;
-		Text responseText = null;
-		ProgressBar pb = null;
-		Label statusText = null;
-		Future<String> future = null;
+		final Shell shell;
+		final StyledText responseText;
+		final ProgressBar pb;
+		final Label statusText;
+		final Future<String> future;
 		
-		public PopulateResponse(Shell shell, Text responseText,
+		public PopulateResponse(Shell shell, StyledText responseText,
 				ProgressBar pb, Label statusText, Future<String> future) {
 			super();
 			this.shell = shell;
@@ -771,13 +1018,16 @@ public class WSExplorer {
 					statusStringToSet.append(text);
 					responseStringToSet.append("No response was given");
 					statusTextException = WSUtil.CURRENT_EXCEPTION;
+					setStatusImage(false);
 				} else {
 					responseStringToSet.append(text);
 					statusStringToSet.append("Got a response");
+					setStatusImage(true);
 				}
 			} else {
 				if(!CancelWasPressed){
 					statusStringToSet.append("Did not get a response back from Service");
+					setStatusImage(false);
 				}
 			}
 			
@@ -786,7 +1036,9 @@ public class WSExplorer {
             shell.getDisplay().asyncExec(
                     new Runnable() {
                     public void run(){
-                    	responseText.setText(responseStringToSet.toString());
+                    	final String text = responseStringToSet.toString();
+                    	final String prettyText = WSUtil.prettyPrint(text);
+                    	responseText.setText(prettyText != null ? prettyText : text);
                     	statusText.setText(statusStringToSet.toString());
                     	shouldStopProgressBar.set(true);
                     	pb.setSelection(100);
@@ -820,26 +1072,30 @@ public class WSExplorer {
 		@Override
 		public String call() throws Exception {
 
-			final int inc = 5;
-			final long sleepTime = 750;
+			final int inc = 4;
+			final long sleepTime = 250;
 			
 			shouldStopProgressBar.set(false);
 			
-            shell.getDisplay().asyncExec(
+            shell.getDisplay().syncExec(
                     new Runnable() {
                     public void run(){
                     	pb.setSelection(0);
                     }});
 			
             while(!shouldStopProgressBar.get()){
-                shell.getDisplay().asyncExec(
+                shell.getDisplay().syncExec(
                         new Runnable() {
                         public void run(){
-                        	if(pb.getSelection() < 90){ 
-                        	pb.setSelection(pb.getSelection()+inc);
+                        	
+                        	if(pb.getSelection() >= 100){
+                        		pb.setSelection(0);
                         	} else {
-                        		shouldStopProgressBar.set(true);
-                        	}
+                        		pb.setSelection(pb.getSelection()+inc);
+                        	} 
+//                        	else {
+//                        		shouldStopProgressBar.set(true);
+//                        	}
                         }});
                 
                 Thread.sleep(sleepTime);
@@ -913,6 +1169,7 @@ public class WSExplorer {
         shell.getDisplay().asyncExec(
                 new Runnable() {
                 public void run(){
+                	if(t == null){ return;}
                 	statusText.setText(t);
                 }});
 	}
@@ -1027,7 +1284,8 @@ public class WSExplorer {
 			return null;
 		}
 
-		return sb.toString();
+		// removes last \n
+		return sb.substring(0,sb.length()-1);
 	}
 
 	/**
@@ -1041,12 +1299,13 @@ public class WSExplorer {
 		
 		BufferedReader br = SimpleIO.openFileForInput(ENDPOINTS_FILE);
 		try {
-		if(br != null){
-			while((line = br.readLine()) != null){
-				l.add(line);
+			
+			if(br != null){
+				while((line = br.readLine()) != null){
+					l.add(line);
+				}
 			}
-
-		}
+			
 		} catch(IOException e){
 			return null;
 		}
@@ -1211,5 +1470,67 @@ public class WSExplorer {
                 	cancelButton.setEnabled(enable);
                 }});
 		
+	}
+	
+	/**
+	 * Add the normal cut,copy,paste operations. These go away once the menu is customized.
+	 * @param text the text widget that will be modified when the menu items are clicked
+	 * @param popupMenu the popup menu to add the items
+	 */
+	private void addTextOperationsToPopupMenu(final StyledText text, final Menu popupMenu){
+		
+		// Cut
+		final MenuItem cutSqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		cutSqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				text.cut();
+			}
+		});
+		cutSqlTextPopUpMenu.setText("Cut");
+		
+		// Copy
+		final MenuItem copySqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		copySqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				text.copy();	
+			}
+		});
+		copySqlTextPopUpMenu.setText("Copy");
+		
+		// Paste
+		final MenuItem pasteSqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		pasteSqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				text.paste();
+			}
+		});
+		pasteSqlTextPopUpMenu.setText("Paste");
+		
+		// Select All
+		final MenuItem selectAllSqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		selectAllSqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				text.selectAll();
+			}
+		});
+		selectAllSqlTextPopUpMenu.setText("Select All");
+		
+		
+		// Clear All
+		final MenuItem clearAllSqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		clearAllSqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(final SelectionEvent e) {
+				text.setText(StringUtils.EMPTY);
+			}
+		});
+		clearAllSqlTextPopUpMenu.setText("Clear All");
+	}
+	
+	/**
+	 * Add a seperator to the menu.
+	 * @param popupMenu
+	 */
+	private void addSeperator(Menu popupMenu){
+		new MenuItem(popupMenu, SWT.SEPARATOR);
 	}
 }
