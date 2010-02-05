@@ -53,7 +53,12 @@ public class WSUtil {
 
 	public static final String ERROR_PREFIX = "Expletive! I Caught an exception: ";
 	public static Exception CURRENT_EXCEPTION = null;
+	private static final String SSL = "SSL";
 	
+	/**
+	 * Convenience method to get a connection to send a SOAP message.
+	 * @return a SOAPConnection or null if an exception was thrown.
+	 */
 	public static SOAPConnection getConnection(){
 		SOAPConnectionFactory soapConnFactory;
 		SOAPConnection connection = null;
@@ -70,6 +75,7 @@ public class WSUtil {
 		return connection;
 	}
 	/**
+	 * Convenience method to send and receive a SOAP message.
 	 * 
 	 * @param endpoint
 	 * @param soapMessage
@@ -174,6 +180,10 @@ public class WSUtil {
 		return (sw == null ? null : sw.toString());
 	}
 	
+	/**
+	 * A 'hacky' way of attempting to ignore a SSL certificate.
+	 * @throws Exception
+	 */
 	public static void ignoreCertificates() throws Exception {
 		TrustManager tm = new TrustManager();
 		TrustManager[] trustAllCerts = {tm};
@@ -186,12 +196,15 @@ public class WSUtil {
 		};
 		
 		// Install the all-trusting trust manager
-		SSLContext sc = SSLContext.getInstance("SSL");
+		SSLContext sc = SSLContext.getInstance(SSL);
 		sc.init(null, trustAllCerts, new java.security.SecureRandom());
 		HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
 		HttpsURLConnection.setDefaultHostnameVerifier(AllowAllHostnameVerifier);
 	}
 	
+	/**
+	 * Used to attempt to ignore SSL certificates.
+	 */
 	static class TrustManager implements X509TrustManager {
 		@Override
 		public void checkClientTrusted(X509Certificate[] arg0, String arg1)throws CertificateException {}

@@ -1,38 +1,36 @@
 /*
-All Purpose MD5 is a simple, fast, and easy-to-use GUI for calculating and testing MD5s.
-Copyright (C) 2006  Nick Powers
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-or go to http://www.gnu.org/licenses/gpl.html.
+ *   Copyright 2008 Nick Powers.
+ *   This file is part of WSExplorer.
+ *
+ *   WSExplorer is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   WSExplorer is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with WSExplorer.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package com.powers.wsexplorer.ws;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintWriter;
 
 public class SimpleIO {
 
 	/**
-	 * 
+	 * Convenience method to open a file for output.
 	 * @param filename
 	 * @return
 	 */
@@ -60,7 +58,7 @@ public class SimpleIO {
 	}
 
 	/**
-	 * 
+	 * Convenience method to open a file for input.
 	 * @param filename
 	 * @return
 	 */
@@ -81,35 +79,27 @@ public class SimpleIO {
 	}
 
 	/**
-	 * 
-	 * @param pw
+	 * Close a connection quietly.
+	 * @param closeMe any stream to be closed
 	 */
-	public static void close(PrintWriter pw) {
-		if (pw != null) {
-			pw.close();
-		}
-	}
-
-	public static void close(BufferedReader br) {
-		if (br != null) {
+	public static void close(Closeable closeMe) {
+		if (closeMe != null) {
 			try {
-				br.close();
+				closeMe.close();
 			} catch (IOException e) {
+				// ignore
 			}
 		}
 	}
 
+	/**
+	 * Convenience method to check if a files exists.
+	 * @param filename
+	 * @return
+	 */
 	public static boolean exists(String filename) {
 		File file = new File(filename);
 		return (file.exists());
-	}
-	
-	public static void close(InputStream fis){
-		try {
-			fis.close();
-		} catch (IOException e) {
-			// ignore
-		}
 	}
 
 }
