@@ -123,6 +123,7 @@ public class OptionsDialog extends Dialog {
 	public void saveOptions(){
 		Properties props = GUIUtil.readPropertiesFile(OPTIONS_FILE);
 
+		if(props == null) { props = new Properties(); }
 		options.ignoreHostCertificates = ignoreHostCertificatesButton.getSelection();
 		props.put(Options.IGNORE_HOST_CERTIFICATS_KEY, String.valueOf(options.ignoreHostCertificates));
 		
