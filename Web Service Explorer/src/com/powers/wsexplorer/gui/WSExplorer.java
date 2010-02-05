@@ -96,7 +96,7 @@ public class WSExplorer {
 	
 	private final static String SAVED_STATE_FILE = "saved_state.txt";
 	private final static String ENDPOINTS_FILE = "endpoints.txt";
-	private final static String SOAP_TEMPLATE_FILE = "SOAPTemplate.xml";
+	private final static String SOAP_TEMPLATE_FILE = "/SOAPTemplate.xml";
 	private final static String GPLV3_FILE = "/gpl-3.0.txt";
 	private final static String SECONDS = "Seconds";
 	private final static String MILLISECONDS = "Milliseconds";
@@ -648,7 +648,7 @@ public class WSExplorer {
 		newItemMenuItem_3.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				
-				String text = getText(new File(SOAP_TEMPLATE_FILE)); 
+				String text = getText(getClass().getResourceAsStream(SOAP_TEMPLATE_FILE)); 
 				requestText.setText(text);
 				
 			}
