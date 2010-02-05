@@ -24,6 +24,8 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
@@ -90,11 +92,12 @@ public class WSExplorer {
 	final int CONTROL_A = 'A' - 0x40; // the "control A" character
 	final int CONTROL_S = 'S' - 0x40; // the "control S" character
 	final int CONTROL_F = 'F' - 0x40; // the "control S" character
+	private static final String UTF8 = "UTF-8";
 	
 	private final static String SAVED_STATE_FILE = "saved_state.txt";
 	private final static String ENDPOINTS_FILE = "endpoints.txt";
 	private final static String SOAP_TEMPLATE_FILE = "SOAPTemplate.xml";
-	private final static String GPLV3_FILE = "gpl-3.0.txt";
+	private final static String GPLV3_FILE = "/gpl-3.0.txt";
 	private final static String SECONDS = "Seconds";
 	private final static String MILLISECONDS = "Milliseconds";
 	final static String[] TIMEOUT_CHOICES = {SECONDS, MILLISECONDS};
@@ -376,7 +379,7 @@ public class WSExplorer {
 				
 				TextDialog td = new TextDialog(shell);
 				td.setTitle("GPL License");
-				td.setText(getText(new File(GPLV3_FILE)));
+				td.setText(getText(getClass().getResourceAsStream(GPLV3_FILE)));
 				td.open();
 				
 			}
@@ -1266,19 +1269,43 @@ public class WSExplorer {
 	
 	/**
 	 * Gets all the text from the given file.
+	 * @param is InputStream to get the text from
+	 * @return the contents of the file
+	 */
+	public String getText(InputStream is){
+		StringBuilder sb = new StringBuilder();
+		String line = null;
+		
+		try {
+			BufferedReader reader = new BufferedReader(new InputStreamReader(is, UTF8));
+			while ((line=reader.readLine()) != null) {
+				sb.append(line);
+				sb.append("\n");
+			}
+		} catch(Exception e){
+			e.printStackTrace();
+			return null;
+		}
+
+			// removes last \n
+			return sb.substring(0,sb.length()-1);
+	}
+	
+	/**
+	 * Gets all the text from the given file.
 	 * @param f File to get the text from
 	 * @return the contents of the file
 	 */
 	public String getText(File f){
-		StringBuffer sb = new StringBuffer();
+		StringBuilder sb = new StringBuilder();
 		String line = null;
 		
 		try {
-		BufferedReader reader = new BufferedReader(new FileReader(f));
-		while ((line=reader.readLine()) != null) {
-			sb.append(line);
-			sb.append("\n");
-		}
+			BufferedReader reader = new BufferedReader(new FileReader(f));
+			while ((line=reader.readLine()) != null) {
+				sb.append(line);
+				sb.append("\n");
+			}
 		} catch(Exception e){
 			e.printStackTrace();
 			return null;
