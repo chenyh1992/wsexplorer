@@ -13,5 +13,7 @@
 	<classpathentry kind="lib" path="lib/baseline.jar"/>
 	<classpathentry kind="lib" path="lib/swt-grouplayout.jar"/>
 	<classpathentry kind="lib" path="lib/jdom.jar"/>
+	<classpathentry kind="lib" path="lib/syntax.jar"/>
+	<classpathentry kind="lib" path="lib/commons-lang-2.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
