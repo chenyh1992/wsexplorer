@@ -2,4 +2,4 @@
 
 = Download Instructions =
 
-The Web Service Explorer is now a standalone jar file. In order to run it, simply double-click the jar (if you have Java 1.6 installed, it should run). Keep in mind that whereever you run it, it will a few text files (for saving your text from the UI). I suggest running it in a place that it can create files (perhaps your Desktop or your C:\Users\[yourusername]). For example, choosing C:\ is not a good place in Windows Vista/7 due to the UAC.
+The Web Service Explorer is now a standalone jar file. In order to run it, simply double-click the jar (if you have Java 1.6 installed, it should run). Keep in mind that whereever you run it, it will a few text files (for saving your text from the UI). I suggest running it in a place that it can create files (perhaps your Desktop or your C:\Users\your_username). For example, choosing C:\ is not a good place in Windows Vista/7 due to the UAC.
