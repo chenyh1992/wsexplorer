@@ -18,10 +18,13 @@
 
 package com.powers.wsexplorer.ws;
 
+import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
@@ -48,6 +51,8 @@ import org.jdom.Document;
 import org.jdom.input.SAXBuilder;
 import org.jdom.output.Format;
 import org.jdom.output.XMLOutputter;
+
+import sun.net.www.protocol.http.HttpURLConnection;
 
 public class WSUtil {
 
@@ -93,23 +98,37 @@ public class WSUtil {
 			
 			if(connection == null){
 				SOAPConnectionFactory soapConnFactory = SOAPConnectionFactory.newInstance();
-				connection =  soapConnFactory.createConnection();	
+				connection =  soapConnFactory.createConnection();
 			}
 
 			MessageFactory messageFactory = MessageFactory.newInstance();
 	        SOAPMessage message = messageFactory.createMessage();
 	        SOAPPart soapPart = message.getSOAPPart();
-	        
 	        // for Axis web services that require a header
 	        message.getMimeHeaders().addHeader("SOAPAction", "anyaction");
 	        
 	        StreamSource ss = new StreamSource(new StringReader(soapMessage));
 	        soapPart.setContent(ss);
 	        
+//	        java.net.URLStreamHandler handler = new URLStreamHandler() {
+//				
+//				@Override
+//				protected URLConnection openConnection(URL url) throws IOException {
+//					HttpURLConnection conn = new HttpURLConnection(url, null);
+//					conn.setConnectTimeout(2*1000); // 2 seconds
+//					conn.setReadTimeout(3*1000); // 3 seconds
+//					return conn;
+//				}
+//			};
+			
+	        
 	        // format to a URL
 	        URL url = null;
 			try {
 				url = new URL(endpoint);
+				
+				//URL protocol = new URL("http://");
+				//url = new URL(protocol,endpoint, handler);
 			} catch (MalformedURLException e1) {
 				CURRENT_EXCEPTION = e1;
 				e1.printStackTrace();
@@ -171,6 +190,7 @@ public class WSUtil {
 			document = parser.build(new StringReader(xml));
 			XMLOutputter out = new XMLOutputter();
 			out.setFormat(Format.getPrettyFormat());
+			
 			out.output(document, sw);
 			
 		} catch (Exception e) {
