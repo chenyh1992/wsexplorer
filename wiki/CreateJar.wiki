@@ -9,5 +9,5 @@ If you want to make the runnable jar, follow these steps:
  # Choose Export, Java, Runnable Jar
  # Choose the proper run configuration (you may need to run the WSExplorer.java as a Java Application first).
  # Choose the appropriate location to store the jar
- # Choose Package required libraries into generated jar
+ # Choose "Extract required libraries into generated Jar" (for faster start-up)
  # Choose Finish!
