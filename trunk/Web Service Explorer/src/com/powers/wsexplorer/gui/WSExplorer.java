@@ -88,11 +88,16 @@ import com.swtdesigner.SWTResourceManager;
 
 public class WSExplorer {
 
-	final static String VERSION = "0.6";
+	final static String VERSION = "0.7";
 	final int CONTROL_A = 'A' - 0x40; // the "control A" character
 	final int CONTROL_S = 'S' - 0x40; // the "control S" character
 	final int CONTROL_F = 'F' - 0x40; // the "control S" character
+	final int CONTROL_Z = 'Z' - 0x40; // the "control Z" character
+	final int CONTROL_Y = 'Y' - 0x40; // the "control Y" character
+	
 	private static final String UTF8 = "UTF-8";
+	private static final String XML_EXT = "xml";
+	private static String[] XML_FILTER_EXT = { "*.xml"};
 	
 	private final static String SAVED_STATE_FILE = "saved_state.txt";
 	private final static String ENDPOINTS_FILE = "endpoints.txt";
@@ -128,6 +133,7 @@ public class WSExplorer {
 	private Label timeElapsedLabel;
 	private Label statusLabel;
 	
+	private UndoRedoListener requestTextUndoRedoListener = null;
 	/**
 	 * Launch the application
 	 * @param args
@@ -419,7 +425,7 @@ public class WSExplorer {
 		newItemToolItem_5.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				
-				saveToFile(requestText.getText());
+				saveToFile(requestText.getText(), XML_EXT);
 			}
 		});
 		newItemToolItem_5.setToolTipText("Save the text in the Request TextBox");
@@ -431,6 +437,7 @@ public class WSExplorer {
 			public void widgetSelected(final SelectionEvent e) {
 				
 				FileDialog fd = new FileDialog(shell, SWT.OPEN);
+				fd.setFilterExtensions(XML_FILTER_EXT);
 				fd.open();
 				if(fd.getFileName() != null && !fd.getFileName().equalsIgnoreCase("")){
 			         String filename = fd.getFilterPath() + "\\" + fd.getFileName();
@@ -612,22 +619,33 @@ public class WSExplorer {
 		fd_requestText.left = new FormAttachment(0, 3);
 		fd_requestText.right = new FormAttachment(100, -2);
 		requestText.setLayoutData(fd_requestText);
+		
+		// add undo listener
+		requestTextUndoRedoListener = new UndoRedoListener(requestText);
+		requestText.addExtendedModifyListener(requestTextUndoRedoListener.getListener());
+		
 		requestText.addKeyListener(new KeyAdapter() {
 			public void keyPressed(final KeyEvent e) {
 		          if (e.character == CONTROL_A) {
 		        	  requestText.selectAll();
 		           } else if(e.character == CONTROL_S){
-		        	   saveToFile(requestText.getText());
+		        	   saveToFile(requestText.getText(), XML_EXT);
 		           } else if(e.character == CONTROL_F){
 		        	   FindDialog findDialog = new FindDialog(shell,requestText);
 		        	   findDialog.open();
+		           } else if(e.character == CONTROL_Z){
+		        	   requestTextUndoRedoListener.undo();
+		           } else if(e.character == CONTROL_Y){
+		        	   requestTextUndoRedoListener.redo();
 		           }
+		          
+		          
 			}
 		});
 		requestText.setFont(SWTResourceManager.getFont("Courier New", 10, SWT.NONE));
 		requestText.addLineStyleListener(new HTMLLineStyler());
 		
-		
+
 		final Menu requestPopUpMenu = new Menu(requestText);
 		requestText.setMenu(requestPopUpMenu);
 
@@ -701,7 +719,7 @@ public class WSExplorer {
 	          if (e.character == CONTROL_A) {
 	        	  responseText.selectAll();
 	           } else if(e.character == CONTROL_S){
-	        	   saveToFile(responseText.getText());
+	        	   saveToFile(responseText.getText(), XML_EXT);
 	           } else if(e.character == CONTROL_F){
 	        	   FindDialog findDialog = new FindDialog(shell,responseText);
 	        	   findDialog.open();
@@ -1456,29 +1474,51 @@ public class WSExplorer {
 	}
 	
 	
-	public void saveToFile(String text){
-	
+	public void saveToFile(String text) {
+
 		FileDialog fd = new FileDialog(shell, SWT.SAVE);
 		fd.open();
-		
-		 if(fd.getFileName() != null && !fd.getFileName().equalsIgnoreCase("")){
-			 String filename = fd.getFilterPath() + "\\" + fd.getFileName();
-			 PrintWriter pw = null;
-			 
-			 
-			 try {
+
+		if (fd.getFileName() != null && !fd.getFileName().equalsIgnoreCase("")) {
+			String filename = fd.getFilterPath() + "\\" + fd.getFileName();
+			PrintWriter pw = null;
+
+			try {
 				pw = SimpleIO.openFileForOutput(filename);
 			} catch (Exception e1) {
 				log(e1.getMessage());
 				return;
 			}
-			 
-			 pw.println(text);
-			 SimpleIO.close(pw);
-			 
-			 log("Saved file '"+fd.getFileName()+"'");
-		 }
+
+			pw.println(text);
+			SimpleIO.close(pw);
+
+			log("Saved file '" + fd.getFileName() + "'");
+		}
+	}
+	
+	public void saveToFile(String text, String ext) {
 		
+		FileDialog fd = new FileDialog(shell, SWT.SAVE);
+		fd.setFilterExtensions(new String[] {"*."+ext});
+		fd.open();
+
+		if (fd.getFileName() != null && !fd.getFileName().equalsIgnoreCase("")) {
+			String filename = fd.getFilterPath() + "\\" + fd.getFileName();
+			PrintWriter pw = null;
+
+			try {
+				pw = SimpleIO.openFileForOutput(filename);
+			} catch (Exception e1) {
+				log(e1.getMessage());
+				return;
+			}
+
+			pw.println(text);
+			SimpleIO.close(pw);
+
+			log("Saved file '" + fd.getFileName() + "'");
+		}
 	}
 	
 	
@@ -1507,50 +1547,52 @@ public class WSExplorer {
 	private void addTextOperationsToPopupMenu(final StyledText text, final Menu popupMenu){
 		
 		// Cut
-		final MenuItem cutSqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
-		cutSqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+		final MenuItem cutTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		cutTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				text.cut();
 			}
 		});
-		cutSqlTextPopUpMenu.setText("Cut");
+		cutTextPopUpMenu.setText("Cut");
 		
 		// Copy
-		final MenuItem copySqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
-		copySqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+		final MenuItem copyTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		copyTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				text.copy();	
 			}
 		});
-		copySqlTextPopUpMenu.setText("Copy");
+		copyTextPopUpMenu.setText("Copy");
 		
 		// Paste
-		final MenuItem pasteSqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
-		pasteSqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+		final MenuItem pasteTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		pasteTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				text.paste();
 			}
 		});
-		pasteSqlTextPopUpMenu.setText("Paste");
+		pasteTextPopUpMenu.setText("Paste");
 		
 		// Select All
-		final MenuItem selectAllSqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
-		selectAllSqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+		final MenuItem selectAllTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		selectAllTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				text.selectAll();
 			}
 		});
-		selectAllSqlTextPopUpMenu.setText("Select All");
+		selectAllTextPopUpMenu.setText("Select All");
 		
 		
 		// Clear All
-		final MenuItem clearAllSqlTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
-		clearAllSqlTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
+		final MenuItem clearAllTextPopUpMenu = new MenuItem(popupMenu, SWT.NONE);
+		clearAllTextPopUpMenu.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(final SelectionEvent e) {
 				text.setText(StringUtils.EMPTY);
 			}
 		});
-		clearAllSqlTextPopUpMenu.setText("Clear All");
+		clearAllTextPopUpMenu.setText("Clear All");
+		
+
 	}
 	
 	/**
