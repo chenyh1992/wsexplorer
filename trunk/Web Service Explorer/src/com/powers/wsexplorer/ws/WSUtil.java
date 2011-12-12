@@ -18,13 +18,10 @@
 
 package com.powers.wsexplorer.ws;
 
-import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
-import java.net.URLStreamHandler;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
@@ -51,8 +48,6 @@ import org.jdom.Document;
 import org.jdom.input.SAXBuilder;
 import org.jdom.output.Format;
 import org.jdom.output.XMLOutputter;
-
-import sun.net.www.protocol.http.HttpURLConnection;
 
 public class WSUtil {
 
