@@ -621,8 +621,7 @@ public class WSExplorer {
 		requestText.setLayoutData(fd_requestText);
 		
 		// add undo listener
-		requestTextUndoRedoListener = new UndoRedoListener(requestText);
-		requestText.addExtendedModifyListener(requestTextUndoRedoListener.getListener());
+		requestTextUndoRedoListener = new UndoRedoListener(requestText, this);
 		
 		requestText.addKeyListener(new KeyAdapter() {
 			public void keyPressed(final KeyEvent e) {
@@ -814,6 +813,9 @@ public class WSExplorer {
 		
 		putItemsToSaveState();
 		loadStateFromFile(SAVED_STATE_FILE, itemsToSaveState);
+		
+		// attach undo/redo listener after initial text is added to window
+		requestText.addExtendedModifyListener(requestTextUndoRedoListener.getListener());
 		
 		shell.open();
 		
