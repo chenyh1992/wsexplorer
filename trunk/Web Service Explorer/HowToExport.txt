@@ -1,7 +1,9 @@
 If you want to make the runnable jar, follow these steps:
-1.) Run Eclipse 3.4 or higher
-2.) Checkout the project
-3.) Right-click on the project
-4.) Choose Export, Java, Runnable Jar
-5.) Choose the proper run configuration (you may need to run the WSExplorer.java as a Java Application first).
-6.) Choose the appropriate location to store the jar and choose finish!
+1. Run Eclipse 3.4 or higher
+2. Checkout the project
+3. Right-click on the project
+4. Choose Export, Java, Runnable Jar
+5. Choose the proper run configuration (you may need to run the WSExplorer.java as a Java Application first).
+6. Choose the appropriate location to store the jar
+7. Choose "Extract required libraries into generated Jar" (for faster start-up)
+8. Choose Finish
