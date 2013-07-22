@@ -33,6 +33,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +84,8 @@ import org.eclipse.swt.widgets.ToolBar;
 import org.eclipse.swt.widgets.ToolItem;
 
 import com.powers.wsexplorer.ws.SimpleIO;
+import com.powers.wsexplorer.ws.SoapResponse;
+import com.powers.wsexplorer.ws.SoapSender;
 import com.powers.wsexplorer.ws.WSUtil;
 import com.swtdesigner.SWTResourceManager;
 
@@ -115,7 +118,11 @@ public class WSExplorer {
 	
 	private BlockingQueue<Runnable> q = new ArrayBlockingQueue<Runnable>(10);
 	private ThreadPoolExecutor tpe = new ThreadPoolExecutor(5, 10, 10, TimeUnit.SECONDS, q);
-	private CompletionService<String> ecs = new ExecutorCompletionService<String>(tpe);
+	private CompletionService ecs = new ExecutorCompletionService(tpe);
+	
+	private SoapSender soapSender = new SoapSender();
+	private boolean maintainSession = false;
+	private Map<String,String> headers = new HashMap<String,String>();
 	
 	private AtomicBoolean isSending = new AtomicBoolean(false);
 	private AtomicBoolean shouldStopProgressBar = new AtomicBoolean(false);
@@ -132,6 +139,8 @@ public class WSExplorer {
 	private Button cancelButton = null;
 	private Label timeElapsedLabel;
 	private Label statusLabel;
+	private Label sessionIdLabel;
+	private ToolItem maintSessionButton;
 	
 	private UndoRedoListener requestTextUndoRedoListener = null;
 	/**
@@ -269,7 +278,9 @@ public class WSExplorer {
 				
 
 				// clear response text
-				responseText.setText("");
+				responseText.setText(StringUtils.EMPTY);
+				sessionIdLabel.setText(StringUtils.EMPTY); // clear jsession id
+				
 				// clear status image
 				setStatusImage(null);
 				
@@ -278,7 +289,7 @@ public class WSExplorer {
 				statusTextException = null;
 				cancelButton.setEnabled(true);
 				
-				CONNECTION = WSUtil.getConnection();
+				CONNECTION = soapSender.getConnection();
 				
 				if(isSending.get()){
 					log("Currently sending a message. You can only send one at a time...");
@@ -286,8 +297,8 @@ public class WSExplorer {
 				}
 				
 				isSending.set(true);
-				ExecuteWS aExecuteWS = new ExecuteWS(endpointText, msgText, CONNECTION);
-				Future<String> executeWsFuture = ecs.submit(aExecuteWS);
+				ExecuteWS aExecuteWS = new ExecuteWS(endpointText, msgText, CONNECTION, headers);
+				Future<SoapResponse> executeWsFuture = ecs.submit(aExecuteWS);
 				
 				PopulateResponse aPopulateResponse = new PopulateResponse(shell, responseText, progressBar, statusText, executeWsFuture);
 				ecs.submit(aPopulateResponse);
@@ -412,12 +423,8 @@ public class WSExplorer {
 
 		ToolBar toolBar;
 		toolBar = new ToolBar(shell, SWT.NONE);
-		final FormData fd_toolBar = new FormData();
-		fd_toolBar.right = new FormAttachment(0, 323);
-		fd_toolBar.bottom = new FormAttachment(0, 39);
-		fd_toolBar.top = new FormAttachment(0, 0);
-		fd_toolBar.left = new FormAttachment(0, 0);
-		toolBar.setLayoutData(fd_toolBar);
+		toolBar.setLayoutData(new FormData());
+
 
 		final ToolItem newItemToolItem_5 = new ToolItem(toolBar, SWT.PUSH);
 		newItemToolItem_5.setText("Save");
@@ -486,6 +493,36 @@ public class WSExplorer {
 		});
 		newItemToolItem_2.setToolTipText("Clear Response TextBox");
 		newItemToolItem_2.setText("Response");
+		
+		ToolItem toolItem = new ToolItem(toolBar, SWT.SEPARATOR);
+		toolItem.setWidth(32);
+		
+		ToolItem headerToolItem = new ToolItem(toolBar, SWT.NONE);
+		headerToolItem.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				
+				HeaderDialog headerDialog = new HeaderDialog(shell, headers);
+				headers = (Map<String,String>)headerDialog.open();
+				
+			}
+		});
+		headerToolItem.setText("Headers");
+		headerToolItem.setImage(SWTResourceManager.getImage(WSExplorer.class, "/headers.png"));
+		
+		maintSessionButton = new ToolItem(toolBar, SWT.CHECK);
+		maintSessionButton.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				maintainSession = maintSessionButton.getSelection();
+				if(!maintainSession){
+					soapSender.clearSessionData();
+				}
+			}
+		});
+		maintSessionButton.setToolTipText("Maintain session between web service calls via JSESSION ID. For a new session, this should not be selected");
+		maintSessionButton.setText("Session");
+		maintSessionButton.setImage(SWTResourceManager.getImage(WSExplorer.class, "/maint_session.png"));
 
 		
 		statusText = new Label(shell, SWT.BORDER);
@@ -780,13 +817,21 @@ public class WSExplorer {
 		label.setLayoutData(fd_label);
 
 		statusLabel = new Label(shell, SWT.NONE);
-		final FormData fd_label_1 = new FormData();
-		fd_label_1.bottom = new FormAttachment(100, -26);
-		fd_label_1.right = new FormAttachment(0, 108);
-		fd_label_1.top = new FormAttachment(100, -57);
-		fd_label_1.left = new FormAttachment(sendButton2, 3, SWT.DEFAULT);
-		statusLabel.setLayoutData(fd_label_1);
+		final FormData fd_sessionIdLabel = new FormData();
+		fd_sessionIdLabel.bottom = new FormAttachment(100, -26);
+		fd_sessionIdLabel.right = new FormAttachment(0, 108);
+		fd_sessionIdLabel.top = new FormAttachment(100, -57);
+		fd_sessionIdLabel.left = new FormAttachment(sendButton2, 3, SWT.DEFAULT);
+		statusLabel.setLayoutData(fd_sessionIdLabel);
 		sashForm.setWeights(new int[] {1, 1 });
+		
+		sessionIdLabel = new Label(shell, SWT.NONE);
+		sessionIdLabel.setForeground(SWTResourceManager.getColor(SWT.COLOR_DARK_GRAY));
+		FormData sessionIdLabelFormData = new FormData();
+		sessionIdLabelFormData.right = new FormAttachment(cancelButton, -6);
+		sessionIdLabelFormData.bottom = new FormAttachment(statusText, -4);
+		sessionIdLabelFormData.left = new FormAttachment(statusLabel, 23);
+		sessionIdLabel.setLayoutData(sessionIdLabelFormData);
 		shell.layout();
 		
 		
@@ -798,7 +843,7 @@ public class WSExplorer {
 		
 		if(options.ignoreHostCertificates){
 			try {
-				WSUtil.ignoreCertificates();
+				soapSender.ignoreCertificates();
 			} catch (Exception e) {
 				log(e.getMessage(), e);
 				statusTextException = e;
@@ -964,11 +1009,12 @@ public class WSExplorer {
 	 * Handles the execution of the call. It's design to be used in a <tt>CompletionService</tt>.
 	 *
 	 */
-	public class ExecuteWS implements Callable<String> {
+	public class ExecuteWS implements Callable<SoapResponse> {
 
 		String endpointURL = null;
 		String soapMessage = null;
 		SOAPConnection connection = null;
+		Map<String,String> requestHeaders = Collections.emptyMap();
 		
 		public ExecuteWS(String endpointURL, String soapMessage, SOAPConnection connection){
 			this.endpointURL = endpointURL;
@@ -976,9 +1022,17 @@ public class WSExplorer {
 			this.connection = connection;
 		}
 		
+		public ExecuteWS(String endpointURL, String soapMessage, SOAPConnection connection, Map<String,String> requestHeaders){
+			this.endpointURL = endpointURL;
+			this.soapMessage = soapMessage;
+			this.connection = connection;
+			this.requestHeaders = requestHeaders;
+		}
+		
 		@Override
-		public String call() throws Exception {
-			return WSUtil.sendAndReceiveSOAPMessage(endpointURL, soapMessage, connection);
+		public SoapResponse call() throws Exception {
+			String response = soapSender.sendAndReceiveSOAPMessage(endpointURL, soapMessage, connection, requestHeaders, maintainSession);
+			return new SoapResponse(response, soapSender.jsessionId, soapSender.cookie, soapSender.maintainedSessionFromPreviousCall);
 		}
 		
 	}
@@ -994,10 +1048,10 @@ public class WSExplorer {
 		final StyledText responseText;
 		final ProgressBar pb;
 		final Label statusText;
-		final Future<String> future;
+		final Future<SoapResponse> future;
 		
 		public PopulateResponse(Shell shell, StyledText responseText,
-				ProgressBar pb, Label statusText, Future<String> future) {
+				ProgressBar pb, Label statusText, Future<SoapResponse> future) {
 			super();
 			this.shell = shell;
 			this.responseText = responseText;
@@ -1011,6 +1065,8 @@ public class WSExplorer {
 
 			final StringBuffer statusStringToSet = new StringBuffer();
 			final StringBuffer responseStringToSet = new StringBuffer();
+			final StringBuffer jSesionIdToSet = new StringBuffer();
+			final AtomicBoolean maintainSession = new AtomicBoolean();
 			
 			while(!future.isDone()){
 				// check if cancel was clicked...
@@ -1025,8 +1081,11 @@ public class WSExplorer {
 			
 			isSending.set(false);
 			String text = "";
+			SoapResponse soapResponse = SoapResponse.EMPTY_SOAP_RESPONSE;
 			try {
-				text = future.get();
+				soapResponse = future.get();
+				if(soapResponse == null) {soapResponse = SoapResponse.EMPTY_SOAP_RESPONSE; }
+				text = soapResponse.response;
 			} catch(CancellationException e){
 				statusStringToSet.append("Operation was cancelled successfully");
 			}
@@ -1037,13 +1096,16 @@ public class WSExplorer {
 			System.out.println("Text from the call: "+text);
 			if(text != null && !text.equals("") && !CancelWasPressed){
 				
-				if(text.contains(WSUtil.ERROR_PREFIX)){
+				if(text.contains(SoapSender.ERROR_PREFIX)){
 					statusStringToSet.append(text);
 					responseStringToSet.append("No response was given");
-					statusTextException = WSUtil.CURRENT_EXCEPTION;
+					statusTextException = SoapSender.CURRENT_EXCEPTION;
 					setStatusImage(false);
 				} else {
 					responseStringToSet.append(text);
+					jSesionIdToSet.append(soapResponse.jSessionId);
+					maintainSession.set(soapResponse.maintainSessionFromPreviousCall);
+					
 					statusStringToSet.append("Got a response");
 					setStatusImage(true);
 				}
@@ -1063,6 +1125,9 @@ public class WSExplorer {
                     	final String prettyText = WSUtil.prettyPrint(text);
                     	responseText.setText(prettyText != null ? prettyText : text);
                     	statusText.setText(statusStringToSet.toString());
+                    	if(maintainSession.get()){
+                    		sessionIdLabel.setText("JSESSIONID: "+jSesionIdToSet);
+                    	}
                     	shouldStopProgressBar.set(true);
                     	pb.setSelection(100);
                     	cancelButton.setEnabled(false);
@@ -1528,7 +1593,7 @@ public class WSExplorer {
 	 * Cancel the current sending operation.
 	 * @param future
 	 */
-	public void cancelSoapSend(Future<String> future){
+	public void cancelSoapSend(Future<SoapResponse> future){
 		future.cancel(true);
 	}
 	
