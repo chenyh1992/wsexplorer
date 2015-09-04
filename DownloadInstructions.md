@@ -1,0 +1,3 @@
+# Download Instructions #
+
+The Web Service Explorer is now a standalone jar file. In order to run it, simply double-click the jar (if you have Java 1.6 installed, it should run). Keep in mind that whereever you run it, it will a create few text files (they are used for saving the state of the text boxes upon shutdown). I suggest running it in a place that it can create files (perhaps your Desktop or your C:\Users\your\_username). For example, choosing C:\ is not a good place in Windows Vista/7 due to the UAC.
